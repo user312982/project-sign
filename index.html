@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>sign.Translate - ASL Alphabet Recognition</title>
+    <link rel="stylesheet" href="styles.css?v=4">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">sign.Translate</div>
+            <div class="header-actions">
+                <a href="alphabet.html" class="btn-icon" title="ASL Alphabet Guide">
+                    <span>🔤</span>
+                </a>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Left Panel - Video -->
+            <div class="video-panel">
+                <div class="video-wrapper">
+                    <video id="videoElement" autoplay playsinline></video>
+                    <canvas id="canvasElement"></canvas>
+                    
+                    <!-- Video Overlay Info -->
+                    <div class="video-overlay">
+                        <div class="detection-badge">
+                            <span class="badge-icon">👋</span>
+                            <span class="badge-text" id="handCountText">0 hands</span>
+                        </div>
+                        <div class="model-badge">
+                            <span class="status-dot" id="statusDot"></span>
+                            <span class="badge-text" id="modelStatusText">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Language Bar -->
+                <div class="language-bar">
+                    <div class="language-selector">
+                        <span class="lang-icon">🤟</span>
+                        <span>American Sign Language</span>
+                    </div>
+                    <button class="swap-btn" title="Swap languages">⇄</button>
+                    <div class="language-selector">
+                        <span class="lang-icon">🗣️</span>
+                        <span>English</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Translation -->
+            <div class="translation-panel">
+                <!-- Translation Header -->
+                <div class="translation-header">
+                    <div class="mode-indicator" id="modeIndicator">
+                        <span class="mode-dot"></span>
+                        <span class="mode-text" id="modeText">RECORDING</span>
+                    </div>
+                    <div class="detection-info">
+                        <span class="detected-letter" id="currentGesture">-</span>
+                        <span class="confidence-badge" id="confidence">0%</span>
+                    </div>
+                </div>
+
+                <!-- Translation Output -->
+                <div class="translation-output" id="outputBox">
+                    <p class="placeholder">What is your name?</p>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <button id="speakBtn" class="btn-action" title="Text to Speech">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                        </svg>
+                    </button>
+                    <button id="clearBtn" class="btn-action" title="Clear Text">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                        </svg>
+                    </button>
+                    <button id="copyBtn" class="btn-action" title="Copy Text">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                            <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Quick Controls -->
+                <div class="quick-controls">
+                    <div class="control-hint">
+                        <span class="hint-icon">👍</span>
+                        <span class="hint-text">Thumbs Up = Pause</span>
+                    </div>
+                    <div class="control-hint">
+                        <span class="hint-icon">✋</span>
+                        <span class="hint-text">Open Palm = Resume</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Status Text (hidden, for compatibility) -->
+        <div style="display: none;">
+            <span id="statusText"></span>
+            <span id="handCount">0</span>
+            <span id="modelStatus"></span>
+            <span id="translationModeStatus"></span>
+            <span id="modeIcon"></span>
+        </div>
+    </div>
+
+    <!-- TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+    
+    <!-- MediaPipe Hands -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    
+    <!-- API Client (for backend predictions) -->
+    <script src="api_client.js?v=8"></script>
+    
+    <!-- Main Script -->
+    <script src="script.js?v=8"></script>
+</body>
+</html>
