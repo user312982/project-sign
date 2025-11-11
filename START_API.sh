@@ -32,7 +32,7 @@ if ! python -c "import tensorflow" 2>/dev/null; then
 fi
 
 # Check if model exists
-if [ ! -f "models/asl_model.h5" ]; then
+if [ ! -f "models/asl_simple.h5" ]; then
     echo "❌ Model tidak ditemukan di models/asl_model.h5"
     echo "   Pastikan Anda sudah melatih model terlebih dahulu"
     exit 1
@@ -42,7 +42,7 @@ echo "================================================"
 echo "  🚀 Starting API Server..."
 echo "================================================"
 echo ""
-echo "Model: models/asl_model.h5"
+echo "Model: models/asl_simple.h5"
 echo "URL: http://localhost:5000"
 echo ""
 echo "Tekan Ctrl+C untuk stop server"

@@ -265,9 +265,9 @@ function onHandsResults(results) {
         if (handCountText) handCountText.textContent = `${numHands} hand${numHands > 1 ? 's' : ''}`;
 
         // Draw all hands
-    // Strict black and white palette for visualization
-    const handColors = ['#000000', '#000000'];
-    const landmarkColors = ['#000000', '#000000'];
+    // MediaPipe default colors (green for connectors, red for landmarks)
+    const handColors = ['#00FF00', '#FF0000'];      // Green and Red for connectors
+    const landmarkColors = ['#FF0000', '#00FF00'];  // Red and Green for landmarks
         
         for (let i = 0; i < results.multiHandLandmarks.length; i++) {
             const landmarks = results.multiHandLandmarks[i];

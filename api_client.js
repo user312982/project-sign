@@ -13,7 +13,7 @@ let lastCaptureTime = 0;
 let isProcessing = false;
 let lastPrediction = null; // Store last successful prediction
 
-async function captureAndPredict() {
+async function captureAndPredict(landmarks = null) {
     const now = Date.now();
     
     // Throttle predictions to avoid overwhelming the API
@@ -25,19 +25,34 @@ async function captureAndPredict() {
     isProcessing = true;
     
     try {
-        // Create a temporary canvas to capture the current video frame
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = videoElement.videoWidth;
-        tempCanvas.height = videoElement.videoHeight;
-        const tempCtx = tempCanvas.getContext('2d');
+        let requestBody;
         
-        // Draw current video frame
-        tempCtx.drawImage(videoElement, 0, 0);
-        
-        // Convert to base64
-        const imageData = tempCanvas.toDataURL('image/jpeg', 0.8);
-        
-        console.log('📤 Sending prediction request...');
+        // If landmarks provided, send them (for simple model)
+        if (landmarks && landmarks.length > 0) {
+            // Flatten landmarks to array of 63 values (21 points × 3 coords)
+            const flatLandmarks = [];
+            for (const lm of landmarks) {
+                flatLandmarks.push(lm.x, lm.y, lm.z);
+            }
+            
+            console.log('📤 Sending landmarks prediction request...', flatLandmarks.length, 'values');
+            requestBody = { landmarks: flatLandmarks };
+        } else {
+            // Otherwise send image (for image-based model)
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = videoElement.videoWidth;
+            tempCanvas.height = videoElement.videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            // Draw current video frame
+            tempCtx.drawImage(videoElement, 0, 0);
+            
+            // Convert to base64
+            const imageData = tempCanvas.toDataURL('image/jpeg', 0.8);
+            
+            console.log('📤 Sending image prediction request...');
+            requestBody = { image: imageData };
+        }
         
         // Send to API
         const response = await fetch(`${API_URL}/predict`, {
@@ -45,7 +60,7 @@ async function captureAndPredict() {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ image: imageData })
+            body: JSON.stringify(requestBody)
         });
         
         console.log('📥 Response status:', response.status, response.statusText);
@@ -90,7 +105,8 @@ async function recognizeWithAPI(landmarks) {
     }
     
     // Capture and predict (throttled to 1 per second)
-    const result = await captureAndPredict();
+    // Pass landmarks for simple model
+    const result = await captureAndPredict(landmarks);
     
     // Use new result if available, otherwise use last prediction
     const currentResult = result || lastPrediction;

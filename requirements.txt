@@ -1,0 +1,14 @@
+# Core dependencies
+flask>=2.3.0
+flask-cors>=4.0.0
+
+# Machine Learning
+tensorflow>=2.10.0
+keras>=2.10.0
+
+# Image Processing
+pillow>=9.5.0
+opencv-python>=4.8.0
+
+# Data Processing
+numpy>=1.24.0
