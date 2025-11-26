@@ -91,15 +91,11 @@
                     </button>
                 </div>
 
-                <!-- Quick Controls -->
-                <div class="quick-controls">
+                <!-- Quick Controls - DISABLED (Always Recording) -->
+                <div class="quick-controls" style="display: none;">
                     <div class="control-hint">
-                        <span class="hint-icon">👍</span>
-                        <span class="hint-text">Thumbs Up = Pause</span>
-                    </div>
-                    <div class="control-hint">
-                        <span class="hint-icon">✋</span>
-                        <span class="hint-text">Open Palm = Resume</span>
+                        <span class="hint-icon">🎥</span>
+                        <span class="hint-text">Always Recording - No Pause</span>
                     </div>
                 </div>
             </div>
@@ -125,9 +121,9 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     
     <!-- API Client (for backend predictions) -->
-    <script src="api_client.js?v=9"></script>
+    <script src="api_client.js?v=12"></script>
     
     <!-- Main Script -->
-    <script src="script.js?v=9"></script>
+    <script src="script.js?v=12"></script>
 </body>
 </html>

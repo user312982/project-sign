@@ -2,6 +2,11 @@
 // SIGN LANGUAGE TRANSLATOR with TensorFlow.js
 // ============================================
 
+// MediaPipe Drawing Utils (must be imported from window object)
+const drawConnectors = window.drawConnectors;
+const drawLandmarks = window.drawLandmarks;
+const HAND_CONNECTIONS = window.HAND_CONNECTIONS;
+
 // Global Variables
 let camera = null;
 let hands = null;
@@ -14,7 +19,7 @@ let tfModel = null;
 let modelLoaded = false;
 
 // Translation Mode Control
-let isTranslationActive = true; // Auto-start as active, controlled by gesture for pause/resume
+let isTranslationActive = true; // Always active - NO PAUSE (continuous recording mode)
 let lastControlGesture = '';
 let controlGestureTime = 0;
 
@@ -257,6 +262,11 @@ function onHandsResults(results) {
 
     canvasCtx.save();
     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    
+    // Flip camera horizontally (mirror mode)
+    canvasCtx.translate(canvasElement.width, 0);
+    canvasCtx.scale(-1, 1);
+    
     canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
@@ -291,25 +301,14 @@ function onHandsResults(results) {
             canvasCtx.fillText(label, wrist.x * canvasElement.width, wrist.y * canvasElement.height - 10);
         }
 
-        // Check for CONTROL gestures first (START/STOP)
-        const controlGesture = checkControlGesture(results.multiHandLandmarks[0], results.multiHandedness[0]);
-        
-        if (controlGesture) {
-            handleControlGesture(controlGesture);
-        }
+        // Control gestures DISABLED - Always in recording mode
+        // const controlGesture = checkControlGesture(results.multiHandLandmarks[0], results.multiHandedness[0]);
+        // if (controlGesture) {
+        //     handleControlGesture(controlGesture);
+        // }
 
-        // Only process translation gestures if mode is ACTIVE
-        if (isTranslationActive) {
-            processTranslationGestures(results);
-        } else {
-            // Show that translation is paused
-            // Show PAUSED as black text on white background
-            canvasCtx.fillStyle = '#FFFFFF';
-            canvasCtx.fillRect(6, 10, 340, 36);
-            canvasCtx.fillStyle = '#000000';
-            canvasCtx.font = 'bold 20px Arial';
-            canvasCtx.fillText('⏸ TRANSLATION PAUSED', 10, 34);
-        }
+        // Always process translation gestures (no pause mode)
+        processTranslationGestures(results);
 
         } else {
             if (handCount) handCount.textContent = '0';
@@ -338,15 +337,22 @@ function checkControlGesture(landmarks, handedness) {
 
     const extendedCount = Object.values(fingers).filter(v => v).length;
 
-    // PAUSE gesture: Thumbs up (only thumb extended)
-    if (extendedCount === 1 && fingers.thumb) {
-        // Check if thumb is pointing up (not sideways)
-        const thumbTip = landmarks[4];
-        const thumbBase = landmarks[2];
+    // PAUSE gesture: Closed fist (recording gesture - all fingers closed)
+    if (extendedCount === 0) {
+        // All fingers closed = fist
+        // Check if it's a proper fist (fingertips close to palm)
         const wrist = landmarks[0];
+        const middleFingerTip = landmarks[12];
+        const indexFingerTip = landmarks[8];
         
-        // Thumb should be higher than base and wrist
-        if (thumbTip.y < thumbBase.y && thumbTip.y < wrist.y) {
+        // Calculate average distance of fingertips from wrist
+        const avgDistance = (
+            Math.abs(middleFingerTip.y - wrist.y) + 
+            Math.abs(indexFingerTip.y - wrist.y)
+        ) / 2;
+        
+        // If fingers are close to wrist (fist is closed), it's PAUSE
+        if (avgDistance < 0.15) {
             return 'STOP'; // Keep 'STOP' internally but it means PAUSE
         }
     }
@@ -423,7 +429,7 @@ function stopTranslationMode() {
 // TRANSLATION GESTURE PROCESSING
 // ============================================
 
-function processTranslationGestures(results) {
+async function processTranslationGestures(results) {
     // Check for two-hand gestures first
     if (results.multiHandLandmarks.length === 2) {
         const twoHandGesture = recognizeTwoHandGesture(
@@ -439,12 +445,12 @@ function processTranslationGestures(results) {
         }
     }
 
-    // Single hand gestures
+    // Single hand gestures - Try API/TensorFlow first
     for (let i = 0; i < results.multiHandLandmarks.length; i++) {
         const landmarks = results.multiHandLandmarks[i];
         const handedness = results.multiHandedness[i];
 
-        const gesture = recognizeGesture(landmarks, handedness);
+        const gesture = await recognizeGesture(landmarks, handedness);
         
         if (gesture) {
             displayAndProcessGesture(gesture, false);
@@ -514,7 +520,7 @@ function displayAndProcessGesture(gesture, isTwoHand) {
 // GESTURE RECOGNITION with API Backend
 // ============================================
 
-async function recognizeGestureWithTF(landmarks) {
+async function recognizeGestureWithTF(landmarks, handedness) {
     if (!modelLoaded) {
         return null; // API not available
     }
@@ -522,13 +528,17 @@ async function recognizeGestureWithTF(landmarks) {
     try {
         // Use API client to get prediction
         if (typeof recognizeWithAPI === 'function') {
-            const result = await recognizeWithAPI(landmarks);
+            // Extract handedness label (MediaPipe returns 'Left' or 'Right')
+            const handLabel = handedness && handedness.label ? handedness.label : 'Right';
+            const result = await recognizeWithAPI(landmarks, handLabel);
             
             if (result && result.gesture) {
                 return {
                     name: result.gesture,
                     translation: GESTURE_TRANSLATIONS[result.gesture] || result.gesture,
-                    confidence: result.confidence
+                    confidence: result.confidence,
+                    handedness: result.handedness,
+                    model_used: result.model_used
                 };
             }
         }
@@ -542,134 +552,29 @@ async function recognizeGestureWithTF(landmarks) {
 }
 
 // ============================================
-// FALLBACK: RULE-BASED GESTURE RECOGNITION
+// FALLBACK: RULE-BASED GESTURE RECOGNITION (DISABLED)
 // ============================================
+// Note: Fallback gestures are disabled. Only API-based recognition is used.
+// Control gestures (pause/resume) are handled separately in checkControlGesture()
 
-function recognizeGesture(landmarks, handedness) {
-    // Try TensorFlow first
+async function recognizeGesture(landmarks, handedness) {
+    // Try TensorFlow API first (PRIMARY METHOD)
     if (modelLoaded) {
-        const tfResult = recognizeGestureWithTF(landmarks);
-        if (tfResult) return tfResult;
-    }
-
-    // Fallback to rule-based
-    if (!landmarks || landmarks.length < 21) return null;
-
-    const fingers = {
-        thumb: isFingerExtended(landmarks, 4, 3, 2),
-        index: isFingerExtended(landmarks, 8, 6, 5),
-        middle: isFingerExtended(landmarks, 12, 10, 9),
-        ring: isFingerExtended(landmarks, 16, 14, 13),
-        pinky: isFingerExtended(landmarks, 20, 18, 17)
-    };
-
-    const extendedCount = Object.values(fingers).filter(v => v).length;
-
-    // Skip control gestures (already handled)
-    if (extendedCount === 0 || extendedCount === 5) {
-        return null; // These are control gestures
-    }
-
-    // Thumbs Up
-    if (fingers.thumb && !fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky) {
-        const thumbTip = landmarks[4];
-        const thumbBase = landmarks[2];
-        if (thumbTip.y < thumbBase.y) {
-            return { name: 'Thumbs Up', translation: 'Baik', confidence: 0.9 };
+        const tfResult = await recognizeGestureWithTF(landmarks, handedness);
+        if (tfResult) {
+            console.log('🤖 Using TensorFlow prediction:', tfResult.name);
+            return tfResult;
         }
     }
 
-    // Peace Sign
-    if (!fingers.thumb && fingers.index && fingers.middle && !fingers.ring && !fingers.pinky) {
-        return { name: 'Peace Sign', translation: 'Damai', confidence: 0.9 };
-    }
-
-    // OK Sign
-    if (fingers.middle && fingers.ring && fingers.pinky) {
-        const thumbTip = landmarks[4];
-        const indexTip = landmarks[8];
-        const distance = Math.sqrt(
-            Math.pow(thumbTip.x - indexTip.x, 2) +
-            Math.pow(thumbTip.y - indexTip.y, 2)
-        );
-        if (distance < 0.05) {
-            return { name: 'OK Sign', translation: 'Sempurna', confidence: 0.85 };
-        }
-    }
-
-    // Hang Loose
-    if (fingers.thumb && !fingers.index && !fingers.middle && !fingers.ring && fingers.pinky) {
-        return { name: 'Hang Loose', translation: 'Santai', confidence: 0.85 };
-    }
-
-    // Pointing
-    if (!fingers.thumb && fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky) {
-        return { name: 'Pointing', translation: 'Lihat', confidence: 0.8 };
-    }
-
+    // No fallback gestures - only use API predictions
+    // This prevents unwanted gestures like "Cinta", "Peace", etc when API is offline
+    console.log('⚠️ API not available - no gesture recognition');
     return null;
 }
 
 function recognizeTwoHandGesture(landmarks1, landmarks2, handedness1, handedness2) {
-    if (!landmarks1 || !landmarks2) return null;
-
-    const hand1Fingers = {
-        thumb: isFingerExtended(landmarks1, 4, 3, 2),
-        index: isFingerExtended(landmarks1, 8, 6, 5),
-        middle: isFingerExtended(landmarks1, 12, 10, 9),
-        ring: isFingerExtended(landmarks1, 16, 14, 13),
-        pinky: isFingerExtended(landmarks1, 20, 18, 17)
-    };
-
-    const hand2Fingers = {
-        thumb: isFingerExtended(landmarks2, 4, 3, 2),
-        index: isFingerExtended(landmarks2, 8, 6, 5),
-        middle: isFingerExtended(landmarks2, 12, 10, 9),
-        ring: isFingerExtended(landmarks2, 16, 14, 13),
-        pinky: isFingerExtended(landmarks2, 20, 18, 17)
-    };
-
-    const hand1Extended = Object.values(hand1Fingers).filter(v => v).length;
-    const hand2Extended = Object.values(hand2Fingers).filter(v => v).length;
-
-    // Skip control gestures
-    if ((hand1Extended === 0 && hand2Extended === 0) || (hand1Extended === 5 && hand2Extended === 5)) {
-        return null;
-    }
-
-    // Heart Shape
-    const hand1IndexTip = landmarks1[8];
-    const hand2IndexTip = landmarks2[8];
-    const indexDistance = Math.sqrt(
-        Math.pow(hand1IndexTip.x - hand2IndexTip.x, 2) +
-        Math.pow(hand1IndexTip.y - hand2IndexTip.y, 2)
-    );
-
-    if (indexDistance < 0.08 && hand1Extended <= 2 && hand2Extended <= 2) {
-        return { name: 'Heart Shape', translation: 'Cinta', confidence: 0.9 };
-    }
-
-    // Prayer Hands
-    const hand1Palm = landmarks1[9];
-    const hand2Palm = landmarks2[9];
-    const palmDistance = Math.sqrt(
-        Math.pow(hand1Palm.x - hand2Palm.x, 2) +
-        Math.pow(hand1Palm.y - hand2Palm.y, 2)
-    );
-
-    if (palmDistance < 0.1 && hand1Extended >= 4 && hand2Extended >= 4) {
-        return { name: 'Prayer Hands', translation: 'Terima Kasih', confidence: 0.9 };
-    }
-
-    // Double Thumbs Up
-    if (hand1Fingers.thumb && !hand1Fingers.index && hand2Fingers.thumb && !hand2Fingers.index) {
-        const thumb1Tip = landmarks1[4];
-        const thumb2Tip = landmarks2[4];
-        if (thumb1Tip.y < landmarks1[2].y && thumb2Tip.y < landmarks2[2].y) {
-            return { name: 'Double Thumbs Up', translation: 'Sangat Baik', confidence: 0.95 };
-        }
-    }
-
+    // Two-hand gestures disabled - only use API
     return null;
 }
 

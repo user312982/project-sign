@@ -8,74 +8,157 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import tensorflow as tf
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 import io
 import base64
 import json
 from pathlib import Path
+import cv2
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for browser access
 
-# Load model - Try simple model first
-MODEL_PATH = Path(__file__).parent / 'models' / 'asl_simple.h5'
+# Load dual hand models from ASL-ML
+MODEL_R_PATH = Path(__file__).parent / 'models' / 'R_keypoint_classifier_final.h5'
+MODEL_L_PATH = Path(__file__).parent / 'models' / 'L_keypoint_classifier_final.h5'
+LABELS_DUAL_PATH = Path(__file__).parent / 'models' / 'labels_dual.json'
 
-print("Loading model...")
-if MODEL_PATH.exists():
-    # Simple landmark-based model
-    print(f"Loading landmark-based model: {MODEL_PATH}")
-    model = tf.keras.models.load_model(str(MODEL_PATH))
-    
-    # Load labels from JSON
-    labels_path = Path(__file__).parent / 'models' / 'labels_simple.json'
-    if labels_path.exists():
-        with open(labels_path, 'r') as f:
-            labels_data = json.load(f)
-            LABELS = labels_data['labels']
-    else:
-        # Auto-detect from model output
-        num_classes = model.output_shape[-1]
-        LABELS = [chr(65 + i) for i in range(num_classes)]
-    
-    MODEL_TYPE = 'landmarks'  # Uses hand landmarks, not images
-    IMG_SIZE = None
-    USE_GRAYSCALE = None
-    
+print("Loading dual hand models...")
+if not MODEL_R_PATH.exists():
+    raise FileNotFoundError(f"Right hand model not found at {MODEL_R_PATH}!")
+if not MODEL_L_PATH.exists():
+    raise FileNotFoundError(f"Left hand model not found at {MODEL_L_PATH}!")
+
+model_right = tf.keras.models.load_model(str(MODEL_R_PATH))
+model_left = tf.keras.models.load_model(str(MODEL_L_PATH))
+
+# For backward compatibility, keep 'model' as model_right
+model = model_right
+
+# Detect IMG_SIZE from model input shape
+input_shape = model.input_shape
+# Dual hand models expect 42 values (21 landmarks × 2 coords)
+# But we still support image mode for backward compatibility
+MODEL_TYPE = 'landmark'  # Changed to landmark-based
+
+# Load labels for dual hand models (27 classes: a-z + space)
+if LABELS_DUAL_PATH.exists():
+    print(f"Loading labels from: {LABELS_DUAL_PATH}")
+    with open(LABELS_DUAL_PATH, 'r') as f:
+        labels_dict = json.load(f)
+        LABELS = [labels_dict[str(i)] for i in range(len(labels_dict))]
+        print(f"Loaded {len(LABELS)} labels from JSON")
 else:
-    # Fallback to image-based model
-    MODEL_PATH = Path(__file__).parent / 'models' / 'asl_model.h5'
-    if not MODEL_PATH.exists():
-        raise FileNotFoundError("No model found! Please train a model first.")
+    # Fallback for dual hand models (27 classes)
+    LABELS = [chr(97 + i) for i in range(26)] + ['space']
+    print(f"Using default 27 labels (a-z + space)")
+
+# For image conversion (backward compatibility)
+IMG_SIZE = 64
+USE_GRAYSCALE = False
     
-    model = tf.keras.models.load_model(str(MODEL_PATH))
-    
-    # Detect IMG_SIZE from model input shape
-    input_shape = model.input_shape
-    IMG_SIZE = input_shape[1]  # Get height (assuming square images)
-    USE_GRAYSCALE = input_shape[-1] == 1
-    
-    # Detect labels from output shape
-    num_classes = model.output_shape[-1]
-    if num_classes == 25:
-        # Model without J (J requires motion)
-        LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 
-                  'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
-    elif num_classes == 26:
-        LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 
-                  'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
-    else:
-        # Generate generic labels
-        LABELS = [chr(65 + i) for i in range(num_classes)]
-    
-    MODEL_TYPE = 'image'
-    
-print(f"✓ Model loaded: {MODEL_PATH}")
+print(f"✓ Dual hand models loaded:")
+print(f"  Right hand: {MODEL_R_PATH.name}")
+print(f"  Left hand: {MODEL_L_PATH.name}")
 print(f"  Type: {MODEL_TYPE}")
 print(f"  Input shape: {model.input_shape}")
 print(f"  Output shape: {model.output_shape}")
 print(f"  Labels: {LABELS}")
-if MODEL_TYPE == 'image':
-    print(f"  Grayscale: {USE_GRAYSCALE}")
+
+# ============================================
+# LANDMARK PREPROCESSING (ASL-ML Format)
+# ============================================
+
+def preprocess_landmarks(landmarks):
+    """
+    Preprocess MediaPipe landmarks for dual hand model prediction.
+    Converts 63 values (21 landmarks × 3 coords) to 42 values (21 landmarks × 2 coords).
+    Applies wrist-relative normalization as per ASL-ML preprocessing.
+    
+    Args:
+        landmarks: List of 63 values [x1,y1,z1, x2,y2,z2, ..., x21,y21,z21]
+    
+    Returns:
+        numpy array of 42 normalized values [x1,y1, x2,y2, ..., x21,y21]
+    """
+    # Reshape to (21, 3) and extract only x, y (drop z)
+    landmarks_array = np.array(landmarks).reshape(21, 3)
+    landmarks_2d = landmarks_array[:, :2]  # Take only x, y coordinates
+    
+    # Make wrist-relative (subtract wrist position from all landmarks)
+    base_x, base_y = landmarks_2d[0]
+    landmarks_2d[:, 0] -= base_x
+    landmarks_2d[:, 1] -= base_y
+    
+    # Flatten to 1D array
+    landmarks_flat = landmarks_2d.flatten()
+    
+    # Normalize by max absolute value
+    max_value = np.max(np.abs(landmarks_flat))
+    if max_value > 0:
+        landmarks_flat = landmarks_flat / max_value
+    
+    return landmarks_flat
+
+# ============================================
+# LANDMARK TO IMAGE CONVERSION
+# ============================================
+
+def landmarks_to_image(landmarks, img_size=64, use_grayscale=False):
+    """
+    Convert MediaPipe hand landmarks (21 points x 3 coords) to image
+    that can be fed to the CNN model.
+    
+    Args:
+        landmarks: List of 63 values [x1,y1,z1, x2,y2,z2, ..., x21,y21,z21]
+        img_size: Output image size (default 64x64)
+        use_grayscale: Whether to output grayscale or RGB
+    
+    Returns:
+        PIL Image object
+    """
+    # Reshape landmarks to (21, 3)
+    landmarks_array = np.array(landmarks).reshape(21, 3)
+    
+    # Normalize to image coordinates (0 to img_size)
+    # MediaPipe coordinates are normalized 0-1
+    x_coords = landmarks_array[:, 0] * img_size
+    y_coords = landmarks_array[:, 1] * img_size
+    
+    # Create white background image
+    if use_grayscale:
+        img = Image.new('L', (img_size, img_size), color=255)
+    else:
+        img = Image.new('RGB', (img_size, img_size), color=(255, 255, 255))
+    
+    draw = ImageDraw.Draw(img)
+    
+    # MediaPipe hand connections (pairs of landmark indices)
+    HAND_CONNECTIONS = [
+        (0, 1), (1, 2), (2, 3), (3, 4),  # Thumb
+        (0, 5), (5, 6), (6, 7), (7, 8),  # Index
+        (0, 9), (9, 10), (10, 11), (11, 12),  # Middle
+        (0, 13), (13, 14), (14, 15), (15, 16),  # Ring
+        (0, 17), (17, 18), (18, 19), (19, 20),  # Pinky
+        (5, 9), (9, 13), (13, 17)  # Palm
+    ]
+    
+    # Draw connections (lines between landmarks)
+    line_color = 0 if use_grayscale else (0, 0, 0)  # Black
+    for connection in HAND_CONNECTIONS:
+        start_idx, end_idx = connection
+        start_point = (int(x_coords[start_idx]), int(y_coords[start_idx]))
+        end_point = (int(x_coords[end_idx]), int(y_coords[end_idx]))
+        draw.line([start_point, end_point], fill=line_color, width=2)
+    
+    # Draw landmarks (points)
+    point_color = 50 if use_grayscale else (50, 50, 50)  # Dark gray
+    for i in range(21):
+        x, y = int(x_coords[i]), int(y_coords[i])
+        radius = 3
+        draw.ellipse([x-radius, y-radius, x+radius, y+radius], fill=point_color)
+    
+    return img
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -85,67 +168,43 @@ def health():
 @app.route('/predict', methods=['POST'])
 def predict():
     """
-    Predict ASL letter from image or landmarks
-    Expects: JSON with base64 encoded image or landmarks array
+    Predict ASL letter from landmarks with handedness detection.
+    Expects: JSON with 'landmarks' (array of 63 values) and optional 'handedness' ('Left' or 'Right')
     Returns: JSON with prediction and confidence
     """
     try:
         # Get JSON data
         data = request.get_json()
         
-        # Check if using landmarks (simple model) or image
-        if MODEL_TYPE == 'landmarks' and 'landmarks' in data:
-            # Use landmarks directly
-            landmarks = np.array(data['landmarks'])
-            
-            # Ensure correct shape (63 features)
-            if landmarks.shape != (63,):
-                return jsonify({'error': 'Invalid landmarks shape. Expected (63,)'}), 400
-            
-            # Add batch dimension
-            landmarks = np.expand_dims(landmarks, axis=0)
-            
-            # Make prediction
-            predictions = model.predict(landmarks, verbose=0)[0]
-            
-        elif 'image' in data:
-            # Image-based prediction
-            if MODEL_TYPE == 'landmarks':
-                return jsonify({'error': 'This model requires hand landmarks, not images'}), 400
-            
-            # Decode base64 image
-            image_data = data['image']
-            if ',' in image_data:
-                # Remove data:image/png;base64, prefix
-                image_data = image_data.split(',')[1]
-            
-            image_bytes = base64.b64decode(image_data)
-            image = Image.open(io.BytesIO(image_bytes))
-            
-            # Convert to RGB if needed
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-            
-            # Convert to grayscale if model expects it
-            if USE_GRAYSCALE:
-                image = image.convert('L')  # Grayscale
-            
-            # Resize to model input size
-            image = image.resize((IMG_SIZE, IMG_SIZE))
-            
-            # Convert to numpy array and normalize
-            img_array = np.array(image) / 255.0
-            
-            # Add channel dimension if grayscale
-            if USE_GRAYSCALE and len(img_array.shape) == 2:
-                img_array = np.expand_dims(img_array, axis=-1)
-            
-            img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
-            
-            # Make prediction
-            predictions = model.predict(img_array, verbose=0)[0]
+        # Check if landmarks are provided
+        if 'landmarks' not in data:
+            return jsonify({'error': 'Landmarks required. Send 63 values (21 landmarks × 3 coords)'}), 400
+        
+        landmarks = data['landmarks']
+        handedness = data.get('handedness', 'Right')  # Default to Right hand
+        
+        if len(landmarks) != 63:
+            return jsonify({'error': f'Expected 63 landmark values, got {len(landmarks)}'}), 400
+        
+        print(f"📍 Received landmarks: {len(landmarks)} values, Handedness: {handedness}")
+        
+        # Preprocess landmarks (63 → 42 values, normalized)
+        processed_landmarks = preprocess_landmarks(landmarks)
+        print(f"   Preprocessed to {len(processed_landmarks)} values (42 = 21 landmarks × 2 coords)")
+        
+        # Select model based on handedness
+        if handedness == 'Left':
+            selected_model = model_left
+            model_name = "Left Hand"
         else:
-            return jsonify({'error': 'No image or landmarks provided'}), 400
+            selected_model = model_right
+            model_name = "Right Hand"
+        
+        # Prepare input for model (shape: 1, 42)
+        model_input = np.array([processed_landmarks], dtype=np.float32)
+        
+        # Make prediction
+        predictions = selected_model.predict(model_input, verbose=0)[0]
         
         # Get top prediction
         top_idx = np.argmax(predictions)
@@ -164,7 +223,7 @@ def predict():
         
         # DEBUG: Print prediction results to console
         print(f"\n{'='*50}")
-        print(f"🔍 PREDICTION RESULT:")
+        print(f"🔍 PREDICTION RESULT ({model_name} Model):")
         print(f"   Top: {top_label} ({top_confidence:.1%})")
         print(f"   Top 3:")
         for i, pred in enumerate(top_3, 1):
@@ -174,7 +233,9 @@ def predict():
         return jsonify({
             'prediction': top_label,
             'confidence': top_confidence,
-            'top3': top_3
+            'top3': top_3,
+            'handedness': handedness,
+            'model_used': model_name
         })
         
     except Exception as e:
@@ -190,19 +251,16 @@ def get_labels():
 
 if __name__ == '__main__':
     print("\n" + "="*60)
-    print("🚀 ASL Alphabet Recognition API")
+    print("🚀 ASL Alphabet Recognition API (Dual Hand Models)")
     print("="*60)
-    print(f"Model: {MODEL_PATH.name}")
+    print(f"Right Hand Model: {MODEL_R_PATH.name}")
+    print(f"Left Hand Model: {MODEL_L_PATH.name}")
     print(f"Type: {MODEL_TYPE}")
     print(f"Labels: {len(LABELS)} ({', '.join(LABELS)})")
-    if MODEL_TYPE == 'image':
-        print(f"Image size: {IMG_SIZE}x{IMG_SIZE}")
-        print(f"Color mode: {'Grayscale' if USE_GRAYSCALE else 'RGB'}")
-    else:
-        print(f"Input: 63 hand landmarks (21 points × 3 coords)")
+    print(f"Input: 42 values (21 landmarks × 2 coords)")
     print("\nEndpoints:")
     print("  GET  /health  - Health check")
-    print("  POST /predict - Predict ASL letter")
+    print("  POST /predict - Predict ASL letter (requires 'landmarks' and optional 'handedness')")
     print("  GET  /labels  - Get all labels")
     print("\nStarting server on http://localhost:5000")
     print("="*60)

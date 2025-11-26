@@ -3,7 +3,109 @@
 // ============================================
 
 const API_URL = 'http://localhost:5000';
-const CAPTURE_INTERVAL = 1000; // Capture and predict every 1 second
+const CAPTURE_INTERVAL = 300; // Faster predictions: every 300ms (was 1000ms)
+
+// ============================================
+// REAL-TIME PREDICTION ENHANCEMENT
+// ============================================
+
+// Temporal smoothing - Store recent predictions for averaging
+const PREDICTION_HISTORY_SIZE = 5; // Keep last 5 predictions
+let predictionHistory = [];
+
+// Confidence threshold
+const MIN_CONFIDENCE = 0.60; // Only accept predictions with >60% confidence
+
+// Gesture stability detection
+let lastLandmarks = null;
+const STABILITY_THRESHOLD = 0.02; // Max landmark movement to be considered "stable"
+
+// Multi-frame consensus
+function addPredictionToHistory(prediction, confidence) {
+    predictionHistory.push({ prediction, confidence, timestamp: Date.now() });
+    
+    // Keep only recent predictions (last 5)
+    if (predictionHistory.length > PREDICTION_HISTORY_SIZE) {
+        predictionHistory.shift();
+    }
+}
+
+function getConsensusPrediction() {
+    if (predictionHistory.length === 0) return null;
+    
+    // Remove old predictions (older than 2 seconds)
+    const now = Date.now();
+    predictionHistory = predictionHistory.filter(p => now - p.timestamp < 2000);
+    
+    if (predictionHistory.length === 0) return null;
+    
+    // Count votes for each prediction
+    const votes = {};
+    let totalConfidence = {};
+    
+    for (const item of predictionHistory) {
+        if (!votes[item.prediction]) {
+            votes[item.prediction] = 0;
+            totalConfidence[item.prediction] = 0;
+        }
+        votes[item.prediction]++;
+        totalConfidence[item.prediction] += item.confidence;
+    }
+    
+    // Find prediction with most votes
+    let bestPrediction = null;
+    let maxVotes = 0;
+    let bestAvgConfidence = 0;
+    
+    for (const [prediction, voteCount] of Object.entries(votes)) {
+        const avgConfidence = totalConfidence[prediction] / voteCount;
+        
+        // Prefer predictions with more votes, or higher confidence if tied
+        if (voteCount > maxVotes || (voteCount === maxVotes && avgConfidence > bestAvgConfidence)) {
+            bestPrediction = prediction;
+            maxVotes = voteCount;
+            bestAvgConfidence = avgConfidence;
+        }
+    }
+    
+    // Require at least 60% agreement (3 out of 5)
+    const agreementRatio = maxVotes / predictionHistory.length;
+    if (agreementRatio < 0.6) {
+        console.log(`⚠️ Low agreement: ${(agreementRatio*100).toFixed(0)}% (${maxVotes}/${predictionHistory.length})`);
+        return null;
+    }
+    
+    console.log(`✅ Consensus: ${bestPrediction} (${(agreementRatio*100).toFixed(0)}% agreement, ${bestAvgConfidence.toFixed(2)} confidence)`);
+    
+    return {
+        prediction: bestPrediction,
+        confidence: bestAvgConfidence,
+        agreement: agreementRatio,
+        votes: maxVotes,
+        total: predictionHistory.length
+    };
+}
+
+function calculateLandmarkStability(landmarks) {
+    if (!lastLandmarks) {
+        lastLandmarks = landmarks;
+        return 0; // First frame, assume stable
+    }
+    
+    // Calculate average movement of all landmarks
+    let totalMovement = 0;
+    for (let i = 0; i < landmarks.length; i++) {
+        const dx = landmarks[i].x - lastLandmarks[i].x;
+        const dy = landmarks[i].y - lastLandmarks[i].y;
+        const dz = landmarks[i].z - lastLandmarks[i].z;
+        totalMovement += Math.sqrt(dx*dx + dy*dy + dz*dz);
+    }
+    
+    const avgMovement = totalMovement / landmarks.length;
+    lastLandmarks = landmarks;
+    
+    return avgMovement;
+}
 
 // ============================================
 // Capture and Send Frame to API
@@ -13,7 +115,7 @@ let lastCaptureTime = 0;
 let isProcessing = false;
 let lastPrediction = null; // Store last successful prediction
 
-async function captureAndPredict(landmarks = null) {
+async function captureAndPredict(landmarks = null, handedness = 'Right') {
     const now = Date.now();
     
     // Throttle predictions to avoid overwhelming the API
@@ -27,7 +129,7 @@ async function captureAndPredict(landmarks = null) {
     try {
         let requestBody;
         
-        // If landmarks provided, send them (for simple model)
+        // If landmarks provided, send them (PREFERRED - more efficient)
         if (landmarks && landmarks.length > 0) {
             // Flatten landmarks to array of 63 values (21 points × 3 coords)
             const flatLandmarks = [];
@@ -35,8 +137,11 @@ async function captureAndPredict(landmarks = null) {
                 flatLandmarks.push(lm.x, lm.y, lm.z);
             }
             
-            console.log('📤 Sending landmarks prediction request...', flatLandmarks.length, 'values');
-            requestBody = { landmarks: flatLandmarks };
+            console.log(`📤 Sending landmarks prediction request... ${flatLandmarks.length} values, Handedness: ${handedness}`);
+            requestBody = { 
+                landmarks: flatLandmarks,
+                handedness: handedness  // Add handedness to request
+            };
         } else {
             // Otherwise send image (for image-based model)
             const tempCanvas = document.createElement('canvas');
@@ -91,7 +196,7 @@ async function captureAndPredict(landmarks = null) {
 // Update Recognition Function
 // ============================================
 
-async function recognizeWithAPI(landmarks) {
+async function recognizeWithAPI(landmarks, handedness = 'Right') {
     // Only predict when translation is active
     if (!isTranslationActive) {
         console.log('⏸️ Translation not active');
@@ -105,8 +210,8 @@ async function recognizeWithAPI(landmarks) {
     }
     
     // Capture and predict (throttled to 1 per second)
-    // Pass landmarks for simple model
-    const result = await captureAndPredict(landmarks);
+    // Pass landmarks and handedness for dual hand models
+    const result = await captureAndPredict(landmarks, handedness);
     
     // Use new result if available, otherwise use last prediction
     const currentResult = result || lastPrediction;
@@ -114,11 +219,13 @@ async function recognizeWithAPI(landmarks) {
     console.log('📡 API Result:', currentResult);
     
     if (currentResult && currentResult.prediction) {
-        console.log(`✅ Predicted: ${currentResult.prediction} (${currentResult.confidence.toFixed(3)})`);
+        console.log(`✅ Predicted: ${currentResult.prediction} (${currentResult.confidence.toFixed(3)}) [${currentResult.model_used}]`);
         return {
             gesture: currentResult.prediction,
             confidence: currentResult.confidence,
-            top3: currentResult.top3
+            top3: currentResult.top3,
+            handedness: currentResult.handedness,
+            model_used: currentResult.model_used
         };
     }
     
