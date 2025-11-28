@@ -20,8 +20,6 @@ let modelLoaded = false;
 
 // Translation Mode Control
 let isTranslationActive = true; // Always active - NO PAUSE (continuous recording mode)
-let lastControlGesture = '';
-let controlGestureTime = 0;
 
 // Gesture tracking
 let lastGesture = '';
@@ -50,6 +48,7 @@ const videoElement = document.getElementById('videoElement');
 const canvasElement = document.getElementById('canvasElement');
 const speakBtn = document.getElementById('speakBtn');
 const clearBtn = document.getElementById('clearBtn');
+const copyBtn = document.getElementById('copyBtn');
 const outputBox = document.getElementById('outputBox');
 const statusDot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
@@ -62,6 +61,13 @@ const modeIcon = document.getElementById('modeIcon');
 const modeText = document.getElementById('modeText');
 const translationModeStatus = document.getElementById('translationModeStatus');
 const modelStatus = document.getElementById('modelStatusText');
+
+// Debug: Check if buttons are found
+console.log('Button elements:', {
+    speakBtn: !!speakBtn,
+    clearBtn: !!clearBtn,
+    copyBtn: !!copyBtn
+});
 
 // ============================================
 // TENSORFLOW MODEL LOADING
@@ -116,9 +122,9 @@ async function loadTensorFlowModel() {
         }
 
     } catch (error) {
-        console.error('❌ Error connecting to API:', error);
-        console.warn('⚠️ Please start the API server first:');
-        console.info('💡 How to start:');
+        console.error(' Error connecting to API:', error);
+        console.warn(' Please start the API server first:');
+        console.info(' How to start:');
         console.info('   1. Open new terminal');
         console.info('   2. Run: ./START_API.sh');
         console.info('   3. Wait for "Running on http://localhost:5000"');
@@ -226,9 +232,7 @@ async function startCamera() {
         if (speakBtn) speakBtn.disabled = false;
 
         console.log('✓ Camera started successfully');
-        console.log('▶️ Translation mode: AUTO-STARTED');
-        console.log('⏸️ Translation mode: PAUSED');
-        console.log('Use gestures to control: ✋ Open Palm = START | ✊ Fist = STOP');
+        console.log('▶️ Translation mode: AUTO-STARTED (Continuous Recording)');
 
     } catch (error) {
         console.error('Error starting camera:', error);
@@ -301,13 +305,7 @@ function onHandsResults(results) {
             canvasCtx.fillText(label, wrist.x * canvasElement.width, wrist.y * canvasElement.height - 10);
         }
 
-        // Control gestures DISABLED - Always in recording mode
-        // const controlGesture = checkControlGesture(results.multiHandLandmarks[0], results.multiHandedness[0]);
-        // if (controlGesture) {
-        //     handleControlGesture(controlGesture);
-        // }
-
-        // Always process translation gestures (no pause mode)
+        // Always process translation gestures (continuous recording mode)
         processTranslationGestures(results);
 
         } else {
@@ -318,111 +316,6 @@ function onHandsResults(results) {
         }
 
     canvasCtx.restore();
-}
-
-// ============================================
-// CONTROL GESTURE DETECTION (START/STOP)
-// ============================================
-
-function checkControlGesture(landmarks, handedness) {
-    if (!landmarks || landmarks.length < 21) return null;
-
-    const fingers = {
-        thumb: isFingerExtended(landmarks, 4, 3, 2),
-        index: isFingerExtended(landmarks, 8, 6, 5),
-        middle: isFingerExtended(landmarks, 12, 10, 9),
-        ring: isFingerExtended(landmarks, 16, 14, 13),
-        pinky: isFingerExtended(landmarks, 20, 18, 17)
-    };
-
-    const extendedCount = Object.values(fingers).filter(v => v).length;
-
-    // PAUSE gesture: Closed fist (recording gesture - all fingers closed)
-    if (extendedCount === 0) {
-        // All fingers closed = fist
-        // Check if it's a proper fist (fingertips close to palm)
-        const wrist = landmarks[0];
-        const middleFingerTip = landmarks[12];
-        const indexFingerTip = landmarks[8];
-        
-        // Calculate average distance of fingertips from wrist
-        const avgDistance = (
-            Math.abs(middleFingerTip.y - wrist.y) + 
-            Math.abs(indexFingerTip.y - wrist.y)
-        ) / 2;
-        
-        // If fingers are close to wrist (fist is closed), it's PAUSE
-        if (avgDistance < 0.15) {
-            return 'STOP'; // Keep 'STOP' internally but it means PAUSE
-        }
-    }
-
-    // RESUME gesture: Open palm (all fingers extended) with palm facing camera
-    if (extendedCount === 5) {
-        // Check if palm is facing camera (not sideways)
-        const wrist = landmarks[0];
-        const middleFinger = landmarks[9];
-        const palmDirection = Math.abs(middleFinger.x - wrist.x);
-        
-        if (palmDirection < 0.15) { // Palm facing camera
-            return 'START'; // Keep 'START' internally but it means RESUME
-        }
-    }
-
-    return null;
-}
-
-function handleControlGesture(gesture) {
-    const now = Date.now();
-    
-    if (gesture === lastControlGesture) {
-        const holdTime = now - controlGestureTime;
-        
-        if (holdTime > 1000 && holdTime < 1200) { // Execute once after 1 second hold
-            if (gesture === 'START' && !isTranslationActive) {
-                startTranslationMode();
-            } else if (gesture === 'STOP' && isTranslationActive) {
-                stopTranslationMode();
-            }
-        }
-    } else {
-        lastControlGesture = gesture;
-        controlGestureTime = now;
-    }
-}
-
-function startTranslationMode() {
-    isTranslationActive = true;
-    if (modeIndicator) {
-        modeIndicator.classList.remove('paused');
-        modeIndicator.classList.add('recording');
-    }
-    if (modeIcon) modeIcon.textContent = '▶️';
-    if (modeText) modeText.textContent = 'RECORDING';
-    if (translationModeStatus) {
-        translationModeStatus.textContent = 'RECORDING';
-        translationModeStatus.style.color = '#000000';
-    }
-    if (statusText) statusText.textContent = 'Kamera Aktif - Translation RECORDING';
-    
-    console.log('▶️ Translation mode: RECORDING');
-}
-
-function stopTranslationMode() {
-    isTranslationActive = false;
-    if (modeIndicator) {
-        modeIndicator.classList.remove('recording');
-        modeIndicator.classList.add('paused');
-    }
-    if (modeIcon) modeIcon.textContent = '⏸️';
-    if (modeText) modeText.textContent = 'PAUSED';
-    if (translationModeStatus) {
-        translationModeStatus.textContent = 'PAUSED';
-        translationModeStatus.style.color = '#000000';
-    }
-    if (statusText) statusText.textContent = 'Kamera Aktif - Translation PAUSED';
-    
-    console.log('⏸️ Translation mode: PAUSED');
 }
 
 // ============================================
@@ -574,7 +467,7 @@ async function recognizeGesture(landmarks, handedness) {
 }
 
 function recognizeTwoHandGesture(landmarks1, landmarks2, handedness1, handedness2) {
-    // Two-hand gestures disabled - only use API
+    // Two-hand gestures disabled - only use API for single hand recognition
     return null;
 }
 
@@ -606,8 +499,10 @@ function updateOutput() {
 }
 
 function clearOutput() {
+    console.log('🗑️ Clear button clicked!');
     translationHistory = [];
     updateOutput();
+    console.log('✓ Translation history cleared');
 }
 
 // ============================================
@@ -615,29 +510,41 @@ function clearOutput() {
 // ============================================
 
 function speakTranslation() {
+    console.log('🔊 Speak button clicked!');
+    console.log('Translation history:', translationHistory);
+    
     if (translationHistory.length === 0) {
         alert('Tidak ada teks untuk diucapkan');
         return;
     }
 
     const text = translationHistory.join(' ');
+    console.log('Speaking text:', text);
     
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'id-ID';
-        utterance.rate = 0.9;
+        utterance.lang = 'en-US'; // Changed to English for better alphabet pronunciation
+        utterance.rate = 0.8; // Slower for clarity
         utterance.pitch = 1;
         utterance.volume = 1;
 
         utterance.onstart = () => {
+            console.log('🔊 Speech started');
             speakBtn.disabled = true;
             speakBtn.innerHTML = '<span>🔊</span> Berbicara...';
         };
 
         utterance.onend = () => {
+            console.log('🔊 Speech ended');
             speakBtn.disabled = false;
-            speakBtn.innerHTML = '<span>🔊</span> Ucapkan';
+            speakBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
+        };
+
+        utterance.onerror = (event) => {
+            console.error('Speech error:', event);
+            speakBtn.disabled = false;
+            speakBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
         };
 
         window.speechSynthesis.speak(utterance);
@@ -650,8 +557,46 @@ function speakTranslation() {
 // EVENT LISTENERS
 // ============================================
 
-speakBtn.addEventListener('click', speakTranslation);
-clearBtn.addEventListener('click', clearOutput);
+if (speakBtn) {
+    speakBtn.addEventListener('click', speakTranslation);
+    console.log('✓ Speak button listener added');
+} else {
+    console.error('❌ speakBtn not found!');
+}
+
+if (clearBtn) {
+    clearBtn.addEventListener('click', clearOutput);
+    console.log('✓ Clear button listener added');
+} else {
+    console.error('❌ clearBtn not found!');
+}
+
+// Copy button functionality
+if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+        const text = translationHistory.join(' ');
+        if (text.length === 0) {
+            alert('Tidak ada teks untuk disalin');
+            return;
+        }
+        
+        navigator.clipboard.writeText(text).then(() => {
+            console.log('✓ Text copied to clipboard:', text);
+            // Visual feedback - show checkmark
+            const originalHTML = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+            setTimeout(() => {
+                copyBtn.innerHTML = originalHTML;
+            }, 1000);
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+            alert('Gagal menyalin teks');
+        });
+    });
+    console.log('✓ Copy button listener added');
+} else {
+    console.error('❌ copyBtn not found!');
+}
 
 // Auto-start camera on page load
 window.addEventListener('load', async () => {
@@ -674,48 +619,4 @@ window.addEventListener('beforeunload', () => {
 });
 
 console.log('✓ Script loaded');
-
-// ============================================
-// UI ENHANCEMENTS FOR NEW DESIGN
-// ============================================
-
-// Update UI elements for new design
-function updateUIElements() {
-    // Update hand count display
-    const handCountTextEl = document.getElementById('handCountText');
-    if (handCountTextEl && handCount) {
-        const count = parseInt(handCount.textContent) || 0;
-        handCountTextEl.textContent = `${count} hand${count !== 1 ? 's' : ''}`;
-    }
-    
-    // Update model status badge
-    const modelStatusTextEl = document.getElementById('modelStatusText');
-    const statusDotEl = document.getElementById('statusDot');
-    if (modelStatusTextEl && statusDotEl && modelStatus) {
-        modelStatusTextEl.textContent = modelStatus.textContent;
-        if (modelStatus.textContent.includes('Loaded') || modelStatus.textContent.includes('Connected')) {
-            statusDotEl.classList.add('active');
-        } else {
-            statusDotEl.classList.remove('active');
-        }
-    }
-}
-
-// Call update UI periodically
-setInterval(updateUIElements, 100);
-
-// Copy button functionality
-const copyBtn = document.getElementById('copyBtn');
-if (copyBtn) {
-    copyBtn.addEventListener('click', () => {
-        const text = outputBox.textContent;
-        navigator.clipboard.writeText(text).then(() => {
-            console.log('Text copied to clipboard');
-            copyBtn.style.background = 'var(--success)';
-            setTimeout(() => {
-                copyBtn.style.background = '';
-            }, 1000);
-        });
-    });
-}
 
