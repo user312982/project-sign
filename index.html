@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>sign.Translate - ASL Alphabet Recognition</title>
-    <link rel="stylesheet" href="styles.css?v=4">
+    <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
     <div class="app-container">
@@ -62,8 +62,17 @@
                         <span class="mode-text" id="modeText">RECORDING</span>
                     </div>
                     <div class="detection-info">
-                        <span class="detected-letter" id="currentGesture">-</span>
-                        <span class="confidence-badge" id="confidence">0%</span>
+                        <div class="gesture-display">
+                            <span class="detected-letter" id="currentGesture">-</span>
+                            <span class="confidence-badge" id="confidence">0%</span>
+                        </div>
+                        <!-- Hold Progress Bar -->
+                        <div class="hold-progress-container">
+                            <div class="hold-progress-label">Hold to confirm</div>
+                            <div class="hold-progress-bar">
+                                <div class="hold-progress-fill" id="holdProgress"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -121,9 +130,9 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     
     <!-- API Client (for backend predictions) -->
-    <script src="api_client.js?v=12"></script>
-    
+    <script src="api_client.js?v=13"></script>
+
     <!-- Main Script -->
-    <script src="script.js?v=12"></script>
+    <script src="script.js?v=15"></script>
 </body>
 </html>

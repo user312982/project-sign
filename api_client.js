@@ -71,7 +71,7 @@ function getConsensusPrediction() {
     // Require at least 60% agreement (3 out of 5)
     const agreementRatio = maxVotes / predictionHistory.length;
     if (agreementRatio < 0.6) {
-        console.log(`⚠️ Low agreement: ${(agreementRatio*100).toFixed(0)}% (${maxVotes}/${predictionHistory.length})`);
+        console.log(` Low agreement: ${(agreementRatio*100).toFixed(0)}% (${maxVotes}/${predictionHistory.length})`);
         return null;
     }
     
@@ -137,7 +137,7 @@ async function captureAndPredict(landmarks = null, handedness = 'Right') {
                 flatLandmarks.push(lm.x, lm.y, lm.z);
             }
             
-            console.log(`📤 Sending landmarks prediction request... ${flatLandmarks.length} values, Handedness: ${handedness}`);
+            console.log(` Sending landmarks prediction request... ${flatLandmarks.length} values, Handedness: ${handedness}`);
             requestBody = { 
                 landmarks: flatLandmarks,
                 handedness: handedness  // Add handedness to request
@@ -155,7 +155,7 @@ async function captureAndPredict(landmarks = null, handedness = 'Right') {
             // Convert to base64
             const imageData = tempCanvas.toDataURL('image/jpeg', 0.8);
             
-            console.log('📤 Sending image prediction request...');
+            console.log(' Sending image prediction request...');
             requestBody = { image: imageData };
         }
         
@@ -168,10 +168,10 @@ async function captureAndPredict(landmarks = null, handedness = 'Right') {
             body: JSON.stringify(requestBody)
         });
         
-        console.log('📥 Response status:', response.status, response.statusText);
+        console.log(' Response status:', response.status, response.statusText);
         
         if (!response.ok) {
-            console.error('❌ API error:', response.status, response.statusText);
+            console.error(' API error:', response.status, response.statusText);
             throw new Error(`API error: ${response.status}`);
         }
         
@@ -186,7 +186,7 @@ async function captureAndPredict(landmarks = null, handedness = 'Right') {
         return result;
         
     } catch (error) {
-        console.error('❌ Prediction error:', error);
+        console.error(' Prediction error:', error);
         isProcessing = false;
         return null;
     }
@@ -205,7 +205,7 @@ async function recognizeWithAPI(landmarks, handedness = 'Right') {
     
     // Check if we have valid hand detection
     if (!landmarks || landmarks.length === 0) {
-        console.log('👋 No hand detected');
+        console.log(' No hand detected');
         return null;
     }
     
@@ -216,10 +216,10 @@ async function recognizeWithAPI(landmarks, handedness = 'Right') {
     // Use new result if available, otherwise use last prediction
     const currentResult = result || lastPrediction;
     
-    console.log('📡 API Result:', currentResult);
+    console.log(' API Result:', currentResult);
     
     if (currentResult && currentResult.prediction) {
-        console.log(`✅ Predicted: ${currentResult.prediction} (${currentResult.confidence.toFixed(3)}) [${currentResult.model_used}]`);
+        console.log(` Predicted: ${currentResult.prediction} (${currentResult.confidence.toFixed(3)}) [${currentResult.model_used}]`);
         return {
             gesture: currentResult.prediction,
             confidence: currentResult.confidence,
@@ -229,7 +229,7 @@ async function recognizeWithAPI(landmarks, handedness = 'Right') {
         };
     }
     
-    console.log('❌ No prediction from API');
+    console.log(' No prediction from API');
     return null;
 }
 
@@ -245,12 +245,12 @@ async function checkAPIHealth() {
         });
         if (response.ok) {
             const data = await response.json();
-            console.log('✓ API Server connected:', data);
+            console.log(' API Server connected:', data);
             return true;
         }
     } catch (error) {
-        console.error('❌ API Server not responding:', error);
-        console.warn('💡 Make sure API server is running:');
+        console.error(' API Server not responding:', error);
+        console.warn(' Make sure API server is running:');
         console.info('   Terminal: python3 api_server.py');
         console.info('   Or: ./START_API.sh');
         return false;

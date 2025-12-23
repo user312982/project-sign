@@ -2,6 +2,28 @@
 // SIGN LANGUAGE TRANSLATOR with TensorFlow.js
 // ============================================
 
+// CONFIGURATION
+const CONFIG = {
+    // Gesture recognition settings
+    GESTURE_HOLD_DELAY: 2000, // milliseconds to hold before adding to translation
+    MIN_CONFIDENCE: 0.7,      // minimum confidence for gesture recognition
+
+    // Text-to-speech settings
+    TTS_RATE: 0.6,            // speech rate (0.1 to 2)
+    TTS_VOLUME: 0.9,          // speech volume (0 to 1)
+    LETTER_PAUSE: true,       // add pause between letters
+
+    // UI settings
+    SHOW_NOTIFICATIONS: true, // show notification popups
+    NOTIFICATION_DURATION: 3000, // milliseconds
+
+    // MediaPipe settings
+    MAX_NUM_HANDS: 2,
+    MODEL_COMPLEXITY: 1,
+    MIN_DETECTION_CONFIDENCE: 0.7,
+    MIN_TRACKING_CONFIDENCE: 0.7
+};
+
 // MediaPipe Drawing Utils (must be imported from window object)
 const drawConnectors = window.drawConnectors;
 const drawLandmarks = window.drawLandmarks;
@@ -21,11 +43,13 @@ let modelLoaded = false;
 // Translation Mode Control
 let isTranslationActive = true; // Always active - NO PAUSE (continuous recording mode)
 
-// Gesture tracking
+// Gesture tracking with configurable delay
 let lastGesture = '';
 let gestureStartTime = 0;
 let lastTwoHandGesture = '';
 let twoHandGestureStartTime = 0;
+let currentHoldProgress = 0;
+let holdInterval = null;
 
 // ASL Alphabet Labels (A-Z)
 const GESTURE_LABELS = [
@@ -151,10 +175,10 @@ function initializeMediaPipe() {
     });
 
     hands.setOptions({
-        maxNumHands: 2,
-        modelComplexity: 1,
-        minDetectionConfidence: 0.7,
-        minTrackingConfidence: 0.7
+        maxNumHands: CONFIG.MAX_NUM_HANDS,
+        modelComplexity: CONFIG.MODEL_COMPLEXITY,
+        minDetectionConfidence: CONFIG.MIN_DETECTION_CONFIDENCE,
+        minTrackingConfidence: CONFIG.MIN_TRACKING_CONFIDENCE
     });
 
     hands.onResults(onHandsResults);
@@ -354,18 +378,18 @@ async function processTranslationGestures(results) {
 
 function displayAndProcessGesture(gesture, isTwoHand) {
     const gestureKey = isTwoHand ? gesture.name : gesture.name;
-    
+
     console.log('displayAndProcessGesture called:', {
         name: gesture.name,
         translation: gesture.translation,
         confidence: gesture.confidence,
         isTwoHand: isTwoHand
     });
-    
+
     if (currentGesture) currentGesture.textContent = gesture.name + (isTwoHand ? ' (2 Tangan)' : '');
     if (confidence) confidence.textContent = Math.round(gesture.confidence * 100) + '%';
 
-    // Track gesture for translation
+    // Track gesture for translation with visual progress
     const now = Date.now();
     const trackingVar = isTwoHand ? 'twoHand' : 'single';
     const lastGestureVar = isTwoHand ? lastTwoHandGesture : lastGesture;
@@ -379,15 +403,26 @@ function displayAndProcessGesture(gesture, isTwoHand) {
 
     if (gesture.name === lastGestureVar) {
         const holdTime = now - gestureTimeVar;
-        console.log(`⏳ Holding gesture "${gesture.name}" for ${holdTime}ms (need 1500ms)`);
-        if (holdTime > 1500) {
+        const progress = Math.min(holdTime / CONFIG.GESTURE_HOLD_DELAY, 1);
+
+        // Update visual progress
+        updateHoldProgress(progress);
+
+        console.log(`⏳ Holding gesture "${gesture.name}" for ${holdTime}ms (${Math.round(progress * 100)}%)`);
+
+        if (holdTime >= CONFIG.GESTURE_HOLD_DELAY) {
             console.log(`✅ Adding translation: "${gesture.translation}"`);
             addTranslation(gesture.translation);
+
+            // Reset timer to prevent immediate re-addition
             if (isTwoHand) {
-                twoHandGestureStartTime = now + 2000;
+                twoHandGestureStartTime = now + 1000;
             } else {
-                gestureStartTime = now + 2000;
+                gestureStartTime = now + 1000;
             }
+
+            // Clear progress
+            updateHoldProgress(0);
         }
     } else {
         console.log(`🔄 New gesture detected: "${gesture.name}" (was "${lastGestureVar}")`);
@@ -398,15 +433,54 @@ function displayAndProcessGesture(gesture, isTwoHand) {
             lastGesture = gesture.name;
             gestureStartTime = now;
         }
+
+        // Reset progress for new gesture
+        updateHoldProgress(0);
     }
 
-    // Draw on canvas
-    // Draw label in black on white background
+    // Draw on canvas with enhanced styling
+    canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    canvasCtx.fillRect(6, 10, 250, 36);
     canvasCtx.fillStyle = '#FFFFFF';
-    canvasCtx.fillRect(6, 10, 220, 36);
-    canvasCtx.fillStyle = '#000000';
     canvasCtx.font = 'bold 20px Arial';
     canvasCtx.fillText(' ' + gesture.name, 10, 34);
+
+    // Draw progress bar if holding
+    if (currentHoldProgress > 0 && gesture.name === (isTwoHand ? lastTwoHandGesture : lastGesture)) {
+        canvasCtx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        canvasCtx.fillRect(10, 40, 230 * currentHoldProgress, 4);
+    }
+}
+
+// Update visual hold progress indicator
+function updateHoldProgress(progress) {
+    currentHoldProgress = progress;
+
+    // Update UI progress bar if it exists
+    const progressBar = document.getElementById('holdProgress');
+    if (progressBar) {
+        progressBar.style.width = `${progress * 100}%`;
+    }
+
+    // Show/hide progress container
+    const progressContainer = document.querySelector('.hold-progress-container');
+    if (progressContainer) {
+        if (progress > 0) {
+            progressContainer.classList.add('active');
+        } else {
+            progressContainer.classList.remove('active');
+        }
+    }
+
+    // Add/remove holding class to current gesture display
+    const gestureDisplay = document.getElementById('currentGesture');
+    if (gestureDisplay) {
+        if (progress > 0) {
+            gestureDisplay.classList.add('holding');
+        } else {
+            gestureDisplay.classList.remove('holding');
+        }
+    }
 }
 
 // ============================================
@@ -502,55 +576,355 @@ function clearOutput() {
     console.log('🗑️ Clear button clicked!');
     translationHistory = [];
     updateOutput();
+
+    // Reset gesture tracking
+    lastGesture = '';
+    lastTwoHandGesture = '';
+    gestureStartTime = 0;
+    twoHandGestureStartTime = 0;
+    currentHoldProgress = 0;
+    updateHoldProgress(0);
+
+    showNotification('Translation cleared', 'info', 2000);
     console.log('✓ Translation history cleared');
 }
 
 // ============================================
-// TEXT-TO-SPEECH
+// ENHANCED TEXT-TO-SPEECH
 // ============================================
+
+// Text-to-Speech state management
+let isSpeaking = false;
+let speechQueue = [];
+let currentUtterance = null;
 
 function speakTranslation() {
     console.log('🔊 Speak button clicked!');
     console.log('Translation history:', translationHistory);
-    
+
     if (translationHistory.length === 0) {
-        alert('Tidak ada teks untuk diucapkan');
+        showNotification('No text to speak', 'warning', 3000);
         return;
     }
 
+    // Get the translation text
     const text = translationHistory.join(' ');
     console.log('Speaking text:', text);
-    
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'en-US'; // Changed to English for better alphabet pronunciation
-        utterance.rate = 0.8; // Slower for clarity
-        utterance.pitch = 1;
-        utterance.volume = 1;
+    console.log('Text length:', text.length);
 
-        utterance.onstart = () => {
-            console.log('🔊 Speech started');
-            speakBtn.disabled = true;
-            speakBtn.innerHTML = '<span>🔊</span> Berbicara...';
-        };
-
-        utterance.onend = () => {
-            console.log('🔊 Speech ended');
-            speakBtn.disabled = false;
-            speakBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
-        };
-
-        utterance.onerror = (event) => {
-            console.error('Speech error:', event);
-            speakBtn.disabled = false;
-            speakBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
-        };
-
-        window.speechSynthesis.speak(utterance);
-    } else {
-        alert('Browser tidak mendukung text-to-speech');
+    // Validate text
+    if (!text || text.trim().length === 0) {
+        showNotification('No valid text to speak', 'warning', 3000);
+        return;
     }
+
+    // Check if speechSynthesis is supported
+    if (!('speechSynthesis' in window)) {
+        showNotification('Text-to-speech not supported in your browser', 'error', 5000);
+        return;
+    }
+
+    // Stop any ongoing speech
+    stopSpeaking();
+
+    // Start speaking with improved settings
+    setTimeout(() => {
+        speakWithEnhancedSettings(text.trim());
+    }, 100);
+}
+
+// Test function for TTS debugging
+function testTTSWithSampleText() {
+    console.log('Testing TTS with sample text...');
+    const sampleText = "H E L L O";
+    speakWithEnhancedSettings(sampleText);
+}
+
+function speakWithEnhancedSettings(text) {
+    if (!('speechSynthesis' in window)) {
+        showNotification('Your browser does not support text-to-speech', 'error');
+        return;
+    }
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+
+    // Function to attempt speaking with retries
+    const attemptSpeak = (attempt = 0) => {
+        const voices = window.speechSynthesis.getVoices();
+        console.log(`Attempt ${attempt + 1} - voices loaded:`, voices.length);
+
+        if (voices.length > 0) {
+            speakNow(text, voices);
+        } else if (attempt < 3) {
+            console.log(`No voices yet, retrying... (attempt ${attempt + 1})`);
+            // Increase delay with each attempt
+            const delay = 250 * (attempt + 1);
+            setTimeout(() => attemptSpeak(attempt + 1), delay);
+        } else {
+            console.log('No voices loaded after 3 attempts, proceeding with default');
+            speakNow(text, []);
+        }
+    };
+
+    // Start the attempt process
+    attemptSpeak();
+}
+
+function speakNow(text, voices) {
+    try {
+        // Create utterance with optimized settings for ASL letters
+        currentUtterance = new SpeechSynthesisUtterance();
+        currentUtterance.text = text;
+        currentUtterance.rate = CONFIG.TTS_RATE; // Slower for letter clarity
+        currentUtterance.pitch = 1.0;
+        currentUtterance.volume = CONFIG.TTS_VOLUME;
+        currentUtterance.lang = 'en-US';
+
+        // Try to use a clear English voice
+        const preferredVoices = [
+            'Microsoft Zira Desktop',
+            'Google US English',
+            'Samantha',
+            'Karen',
+            'Microsoft David Desktop',
+            'Alex',
+            'Google US English Female',
+            'English United States'
+        ];
+
+        // Find the best voice
+        let selectedVoice = null;
+
+        // Try exact matches first
+        selectedVoice = voices.find(voice =>
+            preferredVoices.some(name => voice.name.toLowerCase().includes(name.toLowerCase()))
+        );
+
+        // If no exact match, try to find any English voice
+        if (!selectedVoice) {
+            selectedVoice = voices.find(voice =>
+                voice.lang && (voice.lang.includes('en-US') || voice.lang.includes('en-GB') || voice.lang.includes('en_'))
+            );
+        }
+
+        // If still no voice, use the first available
+        if (!selectedVoice && voices.length > 0) {
+            selectedVoice = voices[0];
+        }
+
+        if (selectedVoice) {
+            currentUtterance.voice = selectedVoice;
+            console.log('Using voice:', selectedVoice.name, 'Lang:', selectedVoice.lang);
+        } else {
+            console.log('No voice selected, using browser default');
+        }
+
+        // Add pauses between letters for better clarity if enabled
+        if (CONFIG.LETTER_PAUSE && text.length > 0) {
+            // For ASL, we want clear separation between letters
+            // Don't add spaces to spaces that already exist
+            const processedText = text.replace(/([A-Z])/g, '$1 ').trim();
+            currentUtterance.text = processedText;
+            console.log('Original text:', text, 'Processed text:', processedText);
+        }
+
+        // Add event listeners for TTS
+        currentUtterance.onstart = () => {
+            console.log('🔊 Speech started successfully');
+            isSpeaking = true;
+            updateSpeakButton(true);
+            showNotification('Speaking...', 'info', 1000);
+        };
+
+        currentUtterance.onend = () => {
+            console.log('🔊 Speech ended naturally');
+            isSpeaking = false;
+            currentUtterance = null;
+            updateSpeakButton(false);
+            showNotification('Speech completed', 'success', 2000);
+        };
+
+        currentUtterance.onerror = (event) => {
+            console.error('Speech error occurred:', event);
+            console.error('Error details:', {
+                error: event.error,
+                message: event.message,
+                elapsed: event.elapsedTime,
+                name: event.name
+            });
+            isSpeaking = false;
+            currentUtterance = null;
+            updateSpeakButton(false);
+
+            // User-friendly error messages
+            let errorMsg = 'Speech error occurred';
+            if (event.error === 'network') {
+                errorMsg = 'Network error - check internet connection';
+            } else if (event.error === 'synthesis-unavailable') {
+                errorMsg = 'Speech synthesis unavailable in this browser';
+            } else if (event.error === 'language-unavailable') {
+                errorMsg = 'Language not available';
+            } else if (event.error === 'voice-unavailable') {
+                errorMsg = 'Voice not available';
+            } else if (event.error) {
+                errorMsg = `Speech error: ${event.error}`;
+            }
+
+            showNotification(errorMsg, 'error', 5000);
+        };
+
+        // Ensure Speech Synthesis is ready
+        if (window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+            setTimeout(() => {
+                startSpeaking();
+            }, 100);
+        } else {
+            startSpeaking();
+        }
+
+        function startSpeaking() {
+            console.log('Starting speech with text:', currentUtterance.text);
+            console.log('Speech settings:', {
+                rate: currentUtterance.rate,
+                pitch: currentUtterance.pitch,
+                volume: currentUtterance.volume,
+                lang: currentUtterance.lang,
+                voice: currentUtterance.voice ? currentUtterance.voice.name : 'default'
+            });
+
+            try {
+                window.speechSynthesis.speak(currentUtterance);
+            } catch (error) {
+                console.error('Failed to start speech:', error);
+                isSpeaking = false;
+                currentUtterance = null;
+                updateSpeakButton(false);
+                showNotification('Failed to start speech synthesis', 'error');
+            }
+        }
+
+    } catch (error) {
+        console.error('Error creating speech utterance:', error);
+        showNotification('Failed to initialize speech', 'error');
+    }
+}
+
+function stopSpeaking() {
+    if (isSpeaking && window.speechSynthesis.speaking) {
+        console.log('🔇 Stopping speech...');
+        window.speechSynthesis.cancel();
+        isSpeaking = false;
+        currentUtterance = null;
+        updateSpeakButton(false);
+    }
+}
+
+function updateSpeakButton(speaking) {
+    if (!speakBtn) return;
+
+    if (speaking) {
+        speakBtn.disabled = true;
+        speakBtn.title = 'Stop speaking';
+        speakBtn.innerHTML = `
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <rect x="6" y="4" width="4" height="16"/>
+                <rect x="14" y="4" width="4" height="16"/>
+            </svg>
+        `;
+        speakBtn.style.animation = 'pulse 1.5s ease-in-out infinite';
+    } else {
+        speakBtn.disabled = false;
+        speakBtn.title = 'Text to Speech';
+        speakBtn.innerHTML = `
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+            </svg>
+        `;
+        speakBtn.style.animation = 'none';
+    }
+}
+
+// Load voices when they're available
+window.speechSynthesis.onvoiceschanged = () => {
+    const voices = window.speechSynthesis.getVoices();
+    console.log('Voices loaded:', voices.length);
+
+    // Log available voices for debugging
+    voices.forEach((voice, index) => {
+        if (voice.lang.includes('en') || index < 5) {
+            console.log(`Voice ${index}: ${voice.name} (${voice.lang})`);
+        }
+    });
+};
+
+// Initial voice loading - force loading immediately
+if (window.speechSynthesis) {
+    // Create a dummy utterance to force voice loading in Chrome
+    const dummy = new SpeechSynthesisUtterance();
+    dummy.text = '';
+    dummy.volume = 0;
+
+    // Get voices multiple times to ensure loading
+    window.speechSynthesis.getVoices();
+    setTimeout(() => {
+        window.speechSynthesis.getVoices();
+    }, 100);
+}
+
+// ============================================
+// NOTIFICATION SYSTEM
+// ============================================
+
+function showNotification(message, type = 'info', duration = null) {
+    // Check if notifications are enabled
+    if (!CONFIG.SHOW_NOTIFICATIONS) {
+        console.log(`[${type.toUpperCase()}] ${message}`);
+        return;
+    }
+
+    // Use default duration if not provided
+    duration = duration !== null ? duration : CONFIG.NOTIFICATION_DURATION;
+
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+        <span class="notification-icon">${getNotificationIcon(type)}</span>
+        <span class="notification-message">${message}</span>
+        <button class="notification-close" onclick="this.parentElement.remove()">×</button>
+    `;
+
+    // Add to page
+    document.body.appendChild(notification);
+
+    // Animate in
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 10);
+
+    // Auto remove after duration
+    if (duration > 0) {
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 300);
+        }, duration);
+    }
+}
+
+function getNotificationIcon(type) {
+    const icons = {
+        'success': '✓',
+        'error': '✕',
+        'warning': '⚠',
+        'info': 'ℹ'
+    };
+    return icons[type] || icons.info;
 }
 
 // ============================================
@@ -576,12 +950,14 @@ if (copyBtn) {
     copyBtn.addEventListener('click', () => {
         const text = translationHistory.join(' ');
         if (text.length === 0) {
-            alert('Tidak ada teks untuk disalin');
+            showNotification('No text to copy', 'warning', 2000);
             return;
         }
-        
+
         navigator.clipboard.writeText(text).then(() => {
             console.log('✓ Text copied to clipboard:', text);
+            showNotification('Text copied to clipboard!', 'success', 2000);
+
             // Visual feedback - show checkmark
             const originalHTML = copyBtn.innerHTML;
             copyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
@@ -590,7 +966,7 @@ if (copyBtn) {
             }, 1000);
         }).catch(err => {
             console.error('Failed to copy:', err);
-            alert('Gagal menyalin teks');
+            showNotification('Failed to copy text', 'error', 3000);
         });
     });
     console.log('✓ Copy button listener added');
