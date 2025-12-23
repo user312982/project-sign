@@ -28,9 +28,7 @@
                     
                     <!-- Video Overlay Info -->
                     <div class="video-overlay">
-                        <div class="detection-badge">
-                            <span class="badge-icon">👋</span>
-                            <span class="badge-text" id="handCountText">0 hands</span>
+                        <div>
                         </div>
                         <div class="model-badge">
                             <span class="status-dot" id="statusDot"></span>
@@ -88,6 +86,14 @@
                             <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
                         </svg>
                     </button>
+
+                    <!-- Quick Tip -->
+                    <div style="position: fixed; bottom: 10px; left: 10px; background: rgba(0,0,0,0.8); color: white; padding: 10px; border-radius: 5px; font-size: 0.8rem; max-width: 250px;">
+                        <strong>💡 Tips:</strong><br>
+                        • Huruf: Bentuk huruf A-Z<br>
+                        • Spasi: 5 jari terbuka 🖐️<br>
+                        • Kata: Gabungan huruf otomatis
+                    </div>
                     <button id="clearBtn" class="btn-action" title="Clear Text">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                             <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
@@ -133,6 +139,6 @@
     <script src="api_client.js?v=13"></script>
 
     <!-- Main Script -->
-    <script src="script.js?v=15"></script>
+    <script src="script.js?v=20"></script>
 </body>
 </html>

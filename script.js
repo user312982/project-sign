@@ -9,9 +9,12 @@ const CONFIG = {
     MIN_CONFIDENCE: 0.7,      // minimum confidence for gesture recognition
 
     // Text-to-speech settings
-    TTS_RATE: 0.6,            // speech rate (0.1 to 2)
+    TTS_RATE: 0.8,            // speech rate (0.1 to 2) - optimized for ASL clarity
     TTS_VOLUME: 0.9,          // speech volume (0 to 1)
     LETTER_PAUSE: true,       // add pause between letters
+    TTS_VOICE: 'en-US',       // default voice language
+    TTS_PITCH: 1.0,           // speech pitch (0.5 to 2.0)
+    ENHANCED_TTS: true,       // use enhanced TTS features
 
     // UI settings
     SHOW_NOTIFICATIONS: true, // show notification popups
@@ -92,6 +95,170 @@ console.log('Button elements:', {
     clearBtn: !!clearBtn,
     copyBtn: !!copyBtn
 });
+
+// ============================================
+// SIMPLE FREE TEXT-TO-SPEECH (SATU TOMBOL)
+// ============================================
+
+// Simple TTS function - just speak the text
+function speakSimpleTTS(text) {
+    console.log('=== DEBUG TTS DIMULAI ===');
+    console.log('🔊 Text yang diterima:', text);
+    console.log('📱 Browser info:', navigator.userAgent);
+    console.log('🔧 SpeechSynthesis tersedia:', 'speechSynthesis' in window);
+
+    try {
+        // Check if browser supports speech synthesis
+        if (!('speechSynthesis' in window)) {
+            console.log('❌ Browser tidak mendukung text-to-speech');
+            alert('Browser Anda tidak mendukung text-to-speech. Gunakan Chrome, Firefox, atau Edge.');
+            showNotification('Browser tidak mendukung text-to-speech', 'error', 3000);
+            return;
+        }
+
+        // Validate text
+        if (!text || text.trim().length === 0) {
+            console.log('❌ Tidak ada text untuk diucapkan');
+            alert('Tidak ada text untuk diucapkan');
+            showNotification('Tidak ada text untuk diucapkan', 'warning', 2000);
+            return;
+        }
+
+        // Process text for TTS (hanya bersihkan, tidak tambah spasi)
+        let processedText = text.trim();
+
+        // Tambahkan pause hanya untuk kata-kata pendek (untuk kejelasan)
+        if (processedText.length <= 5 && processedText.match(/^[A-Z\s]+$/)) {
+            processedText = processedText.replace(/\s+/g, '. ').trim() + '.';
+        }
+
+        console.log('📝 Processed text:', processedText);
+
+        // Check available voices
+        let voices = window.speechSynthesis.getVoices();
+        console.log('🎤 Jumlah suara tersedia:', voices.length);
+        console.log('🎤 Daftar suara:', voices.map(v => `${v.name} (${v.lang})`).slice(0, 5));
+
+        // JIKA TIDAK ADA SUARA, coba force load voices
+        if (voices.length === 0) {
+            console.log('⚠️ Tidak ada suara, mencoba force load...');
+            window.speechSynthesis.getVoices();
+
+            // Tunggu sebentar lalu coba lagi
+            setTimeout(() => {
+                voices = window.speechSynthesis.getVoices();
+                console.log('🔄 Suara setelah force load:', voices.length);
+
+                if (voices.length === 0) {
+                    console.log('❌ Masih tidak ada suara, coba install paket suara Linux');
+                    alert('Tidak ada suara tersedia. Di Linux, install: sudo apt install espeak espeak-data');
+
+                    // Coba dengan default voice tanpa spesifikasi
+                    const utterance = new SpeechSynthesisUtterance(processedText);
+                    utterance.rate = 0.8;
+                    utterance.pitch = 1.0;
+                    utterance.volume = 1.0;
+                    utterance.lang = 'en-US';
+
+                    // Event listeners
+                    utterance.onstart = () => {
+                        console.log('🔊 EVENT: onstart - Mulai berbicara...');
+                        updateSpeakButton(true);
+                        showNotification('🔊 Berbicara...', 'info', 1000);
+                    };
+
+                    utterance.onend = () => {
+                        console.log('✅ EVENT: onend - Selesai berbicara');
+                        updateSpeakButton(false);
+                        showNotification('✅ Selesai', 'success', 2000);
+                    };
+
+                    utterance.onerror = (error) => {
+                        console.error('❌ EVENT: onerror - Error TTS:', error);
+                        updateSpeakButton(false);
+                        showNotification(`❌ Error: ${error.error || 'No voices available'}`, 'error', 5000);
+                    };
+
+                    window.speechSynthesis.speak(utterance);
+                    return;
+                }
+            }, 1000);
+        }
+
+        // Create speech utterance
+        const utterance = new SpeechSynthesisUtterance(processedText);
+
+        // Settings optimized for ASL
+        utterance.rate = 0.8;       // Sedikit lebih lambat untuk kejelasan
+        utterance.pitch = 1.0;      // Normal pitch
+        utterance.volume = 1.0;     // Volume maksimum
+        utterance.lang = 'en-US';   // Bahasa Inggris
+
+        // Try to use the first available voice if no preferred voice found
+        if (voices.length > 0) {
+            utterance.voice = voices[0];
+            console.log('🎤 Menggunakan suara pertama:', voices[0].name);
+        }
+
+        // Event listeners with detailed logging
+        utterance.onstart = () => {
+            console.log('🔊 EVENT: onstart - Mulai berbicara...');
+            updateSpeakButton(true);
+            showNotification('🔊 Berbicara...', 'info', 1000);
+        };
+
+        utterance.onend = () => {
+            console.log('✅ EVENT: onend - Selesai berbicara');
+            updateSpeakButton(false);
+            showNotification('✅ Selesai', 'success', 2000);
+        };
+
+        utterance.onerror = (error) => {
+            console.error('❌ EVENT: onerror - Error TTS:', error);
+            console.error('❌ Error details:', {
+                error: error.error,
+                message: error.message,
+                elapsedTime: error.elapsedTime,
+                name: error.name
+            });
+            updateSpeakButton(false);
+            showNotification(`❌ Error: ${error.error}`, 'error', 5000);
+        };
+
+        // Also add boundary events for debugging
+        utterance.onboundary = (event) => {
+            console.log('🔠 Word boundary at character:', event.charIndex, 'name:', event.name);
+        };
+
+        // Cancel any previous speech and start new one
+        console.log('🔄 Canceling previous speech...');
+        window.speechSynthesis.cancel();
+
+        console.log('🚀 Starting speech synthesis...');
+        window.speechSynthesis.speak(utterance);
+
+        // Check if speech is actually speaking after a short delay
+        setTimeout(() => {
+            if (window.speechSynthesis.speaking) {
+                console.log('✅ Speech synthesis is speaking');
+            } else {
+                console.log('⚠️ Speech synthesis is NOT speaking after 500ms');
+                if (window.speechSynthesis.pending) {
+                    console.log('⏳ Speech synthesis is pending');
+                } else {
+                    console.log('❌ Speech synthesis is not pending either');
+                }
+            }
+        }, 500);
+
+    } catch (error) {
+        console.error('❌ TTS Exception:', error);
+        console.error('❌ Stack trace:', error.stack);
+        updateSpeakButton(false);
+        showNotification(`❌ Error: ${error.message}`, 'error', 3000);
+    }
+    console.log('=== DEBUG TTS SELESAI ===');
+}
 
 // ============================================
 // TENSORFLOW MODEL LOADING
@@ -362,13 +529,32 @@ async function processTranslationGestures(results) {
         }
     }
 
-    // Single hand gestures - Try API/TensorFlow first
+    // Single hand gestures - Check for SPACE gesture first
+    for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+        const landmarks = results.multiHandLandmarks[i];
+        const handedness = results.multiHandedness[i];
+
+        // Check for SPACE gesture (5 jari terbuka)
+        if (detectSpaceGesture(landmarks, handedness)) {
+            console.log('🖐️ SPACE gesture detected!');
+            const spaceGesture = {
+                name: 'SPACE',
+                translation: 'SPACE',
+                confidence: 0.9,
+                handedness: handedness.label
+            };
+            displayAndProcessGesture(spaceGesture, false);
+            return; // Stop processing other gestures when space detected
+        }
+    }
+
+    // If no SPACE gesture, process normal letters
     for (let i = 0; i < results.multiHandLandmarks.length; i++) {
         const landmarks = results.multiHandLandmarks[i];
         const handedness = results.multiHandedness[i];
 
         const gesture = await recognizeGesture(landmarks, handedness);
-        
+
         if (gesture) {
             displayAndProcessGesture(gesture, false);
             break; // Only process first detected gesture
@@ -545,6 +731,47 @@ function recognizeTwoHandGesture(landmarks1, landmarks2, handedness1, handedness
     return null;
 }
 
+// Fungsi untuk mendeteksi gerakan SPACE (5 jari terbuka)
+function detectSpaceGesture(landmarks, handedness) {
+    if (!landmarks || landmarks.length < 21) return false;
+
+    // Indeks untuk setiap jari (tip dari setiap jari)
+    const fingerTips = [4, 8, 12, 16, 20]; // Thumb, Index, Middle, Ring, Pinky
+    const fingerPips = [3, 6, 10, 14, 18];  // PIP dari setiap jari
+
+    // Deteksi apakah semua jari terbuka
+    let openFingers = 0;
+    let totalFingers = 0;
+
+    for (let i = 0; i < fingerTips.length; i++) {
+        const tip = landmarks[fingerTips[i]];
+        const pip = landmarks[fingerPips[i]];
+
+        // Untuk thumb, perbandingan yang berbeda (horizontal)
+        if (i === 0) { // Thumb
+            // Jika tip lebih horizontal dari pip, thumb terbuka
+            if (tip.x < pip.x) {
+                openFingers++;
+            }
+            totalFingers++;
+        } else { // Other fingers
+            // Jika tip lebih tinggi dari pip, jari terbuka
+            if (tip.y < pip.y) {
+                openFingers++;
+            }
+            totalFingers++;
+        }
+    }
+
+    // Logika deteksi space
+    const allFingersOpen = openFingers === totalFingers;
+    const handOpenEnough = openFingers >= 4; // Minimal 4 jari terbuka
+
+    console.log(`🖐️ Space detection: ${openFingers}/${totalFingers} fingers open`);
+
+    return handOpenEnough;
+}
+
 function isFingerExtended(landmarks, tipIdx, pipIdx, mcpIdx) {
     const tip = landmarks[tipIdx];
     const pip = landmarks[pipIdx];
@@ -567,9 +794,60 @@ function updateOutput() {
     if (translationHistory.length === 0) {
         outputBox.innerHTML = '<p class="placeholder">Hasil terjemahan akan muncul di sini...</p>';
     } else {
-        const translationText = translationHistory.join(' ');
+        // Gabungkan huruf menjadi kata dan pisahkan dengan spasi
+        const translationText = processTranslation(translationHistory);
         outputBox.innerHTML = `<p class="translation-text">${translationText}</p>`;
     }
+}
+
+// Proses translation: gabungkan huruf jadi kata, pisahkan dengan SPACE gesture
+function processTranslation(history) {
+    // Satukan semua history
+    let allText = history.join('');
+
+    // Ganti SPACE gesture dengan spasi
+    allText = allText.replace(/SPACE/g, ' ');
+
+    // Pisahkan menjadi array kata-kata
+    let words = allText.split(' ');
+
+    // Proses setiap kata: gabungkan huruf yang berdekatan
+    let processedWords = words.map(word => {
+        if (!word.trim()) return ''; // Skip empty
+
+        // Cek apakah ini sudah kata atau masih kumpulan huruf
+        if (isLikelyAWord(word)) {
+            return word; // Sudah kata, langsung pakai
+        } else {
+            return word.toUpperCase(); // Masih huruf, jadikan uppercase
+        }
+    });
+
+    // Gabungkan kembali dengan spasi
+    return processedWords.join(' ').trim();
+}
+
+// Cek apakah string kemungkinan adalah kata yang sudah lengkap
+function isLikelyAWord(text) {
+    if (!text || text.length < 2) return false;
+
+    // Jika sudah mengandung huruf kecil, kemungkinan sudah kata
+    if (/[a-z]/.test(text)) return true;
+
+    // Jika panjang > 5 huruf uppercase, kemungkinan kata
+    if (text.length > 5) return true;
+
+    // Cek apakah mengandung pola umum kata (vowel patterns)
+    const vowels = ['A', 'E', 'I', 'O', 'U'];
+    let vowelCount = 0;
+    for (let char of text) {
+        if (vowels.includes(char)) vowelCount++;
+    }
+
+    // Jika memiliki cukup vowel untuk sebuah kata
+    if (vowelCount >= 2 && text.length >= 3) return true;
+
+    return false;
 }
 
 function clearOutput() {
@@ -599,39 +877,31 @@ let speechQueue = [];
 let currentUtterance = null;
 
 function speakTranslation() {
-    console.log('🔊 Speak button clicked!');
-    console.log('Translation history:', translationHistory);
+    console.log('🔊 Tombol speak ditekan!');
 
     if (translationHistory.length === 0) {
-        showNotification('No text to speak', 'warning', 3000);
+        console.log('📝 Translation history kosong, coba dengan text test');
+        // Test dengan text sederhana jika tidak ada translation
+        speakSimpleTTS('Hello World');
         return;
     }
 
     // Get the translation text
     const text = translationHistory.join(' ');
-    console.log('Speaking text:', text);
-    console.log('Text length:', text.length);
+    console.log('Text yang akan diucapkan:', text);
 
-    // Validate text
-    if (!text || text.trim().length === 0) {
-        showNotification('No valid text to speak', 'warning', 3000);
-        return;
-    }
-
-    // Check if speechSynthesis is supported
-    if (!('speechSynthesis' in window)) {
-        showNotification('Text-to-speech not supported in your browser', 'error', 5000);
-        return;
-    }
-
-    // Stop any ongoing speech
-    stopSpeaking();
-
-    // Start speaking with improved settings
-    setTimeout(() => {
-        speakWithEnhancedSettings(text.trim());
-    }, 100);
+    // Gunakan TTS sederhana
+    speakSimpleTTS(text);
 }
+
+// Test function - bisa dipanggil dari console
+function testTTSNow() {
+    console.log('🧪 Manual TTS Test');
+    speakSimpleTTS('This is a test of the text to speech system');
+}
+
+// Tambahkan test ke window agar bisa dipanggil dari console
+window.testTTSNow = testTTSNow;
 
 // Test function for TTS debugging
 function testTTSWithSampleText() {
@@ -974,14 +1244,35 @@ if (copyBtn) {
     console.error('❌ copyBtn not found!');
 }
 
+// ============================================
+// INISIALISASI SEDERHANA
+// ============================================
+
+// Initialize TTS on page load
+function initializeSimpleTTS() {
+    console.log('🔊 Menginisialisasi Text-to-Speech...');
+
+    // Force load voices
+    window.speechSynthesis.getVoices();
+
+    // Log available voices
+    setTimeout(() => {
+        const voices = window.speechSynthesis.getVoices();
+        console.log(`✅ ${voices.length} suara tersedia untuk TTS`);
+    }, 1000);
+}
+
 // Auto-start camera on page load
 window.addEventListener('load', async () => {
     console.log('=== Sign Language Translator with TensorFlow.js ===');
-    console.log('🚀 Auto-starting camera...');
-    
+    console.log('🚀 Memulai kamera...');
+
+    // Initialize simple TTS
+    initializeSimpleTTS();
+
     // Show loading message
     statusText.textContent = 'Meminta izin kamera...';
-    
+
     // Small delay to ensure DOM is ready
     setTimeout(async () => {
         await startCamera();
