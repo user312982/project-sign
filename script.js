@@ -11,7 +11,7 @@ const CONFIG = {
     // Text-to-speech settings
     TTS_RATE: 0.8,            // speech rate (0.1 to 2) - optimized for ASL clarity
     TTS_VOLUME: 0.9,          // speech volume (0 to 1)
-    LETTER_PAUSE: true,       // add pause between letters
+    LETTER_PAUSE: false,       // DIMATIKAN: baca sebagai kalimat, bukan per huruf
     TTS_VOICE: 'en-US',       // default voice language
     TTS_PITCH: 1.0,           // speech pitch (0.5 to 2.0)
     ENHANCED_TTS: true,       // use enhanced TTS features
@@ -53,6 +53,11 @@ let lastTwoHandGesture = '';
 let twoHandGestureStartTime = 0;
 let currentHoldProgress = 0;
 let holdInterval = null;
+
+// Hand presence tracking (untuk reset gesture saat tangan hilang)
+let lastHandDetectedTime = 0;
+let handWasDetected = false;
+const HAND_ABSENCE_RESET_DELAY = 500; // Reset setelah 500ms tangan hilang
 
 // ASL Alphabet Labels (A-Z)
 const GESTURE_LABELS = [
@@ -124,15 +129,19 @@ function speakSimpleTTS(text) {
             return;
         }
 
-        // Process text for TTS (hanya bersihkan, tidak tambah spasi)
+        // Process text for TTS - BACA SEBAGAI KALIMAT UTUH
         let processedText = text.trim();
 
-        // Tambahkan pause hanya untuk kata-kata pendek (untuk kejelasan)
-        if (processedText.length <= 5 && processedText.match(/^[A-Z\s]+$/)) {
-            processedText = processedText.replace(/\s+/g, '. ').trim() + '.';
-        }
+        // Gabungkan huruf-huruf menjadi kata (lowercase untuk natural speech)
+        // Contoh: "H E L L O" -> "hello"
+        processedText = processedText.replace(/\s+/g, '').toLowerCase();
+        
+        // Hilangkan kata "space" dari TTS (tidak perlu diucapkan)
+        processedText = processedText.replace(/space/gi, ' ').trim();
 
         console.log('📝 Processed text:', processedText);
+        console.log('📝 Original text:', text);
+        console.log('📝 Mode: Membaca sebagai kalimat utuh (tanpa "space")');
 
         // Check available voices
         let voices = window.speechSynthesis.getVoices();
@@ -469,6 +478,10 @@ function onHandsResults(results) {
         if (handCount) handCount.textContent = numHands;
         if (handCountText) handCountText.textContent = `${numHands} hand${numHands > 1 ? 's' : ''}`;
 
+        // Update hand detection tracking
+        lastHandDetectedTime = Date.now();
+        handWasDetected = true;
+
         // Draw all hands
     // MediaPipe default colors (green for connectors, red for landmarks)
     const handColors = ['#00FF00', '#FF0000'];      // Green and Red for connectors
@@ -499,12 +512,22 @@ function onHandsResults(results) {
         // Always process translation gestures (continuous recording mode)
         processTranslationGestures(results);
 
-        } else {
-            if (handCount) handCount.textContent = '0';
-            if (handCountText) handCountText.textContent = '0 hands';
-            if (currentGesture) currentGesture.textContent = '-';
-            if (confidence) confidence.textContent = '0%';
+    } else {
+        // NO HAND DETECTED - Reset gesture tracking setelah delay
+        const now = Date.now();
+        
+        // Jika tangan hilang lebih dari HAND_ABSENCE_RESET_DELAY, reset gesture
+        if (handWasDetected && (now - lastHandDetectedTime) > HAND_ABSENCE_RESET_DELAY) {
+            console.log('🚫 Tangan hilang > 500ms, reset gesture tracking');
+            resetGestureTracking();
+            handWasDetected = false;
         }
+        
+        if (handCount) handCount.textContent = '0';
+        if (handCountText) handCountText.textContent = '0 hands';
+        if (currentGesture) currentGesture.textContent = '-';
+        if (confidence) confidence.textContent = '0%';
+    }
 
     canvasCtx.restore();
 }
@@ -850,18 +873,30 @@ function isLikelyAWord(text) {
     return false;
 }
 
-function clearOutput() {
-    console.log('🗑️ Clear button clicked!');
-    translationHistory = [];
-    updateOutput();
-
-    // Reset gesture tracking
+// Reset gesture tracking (dipanggil saat tangan hilang dari frame)
+function resetGestureTracking() {
+    console.log('🔄 Resetting gesture tracking...');
     lastGesture = '';
     lastTwoHandGesture = '';
     gestureStartTime = 0;
     twoHandGestureStartTime = 0;
     currentHoldProgress = 0;
     updateHoldProgress(0);
+    
+    // Clear hold interval jika ada
+    if (holdInterval) {
+        clearInterval(holdInterval);
+        holdInterval = null;
+    }
+}
+
+function clearOutput() {
+    console.log('🗑️ Clear button clicked!');
+    translationHistory = [];
+    updateOutput();
+
+    // Reset gesture tracking menggunakan fungsi yang sama
+    resetGestureTracking();
 
     showNotification('Translation cleared', 'info', 2000);
     console.log('✓ Translation history cleared');
@@ -990,14 +1025,9 @@ function speakNow(text, voices) {
             console.log('No voice selected, using browser default');
         }
 
-        // Add pauses between letters for better clarity if enabled
-        if (CONFIG.LETTER_PAUSE && text.length > 0) {
-            // For ASL, we want clear separation between letters
-            // Don't add spaces to spaces that already exist
-            const processedText = text.replace(/([A-Z])/g, '$1 ').trim();
-            currentUtterance.text = processedText;
-            console.log('Original text:', text, 'Processed text:', processedText);
-        }
+        // DIMATIKAN: Tidak perlu pause antar huruf, baca sebagai kalimat utuh
+        // Text sudah diproses di speakSimpleTTS() untuk menggabungkan huruf
+        console.log('Text akan dibaca sebagai kalimat utuh:', currentUtterance.text);
 
         // Add event listeners for TTS
         currentUtterance.onstart = () => {

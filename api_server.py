@@ -250,6 +250,11 @@ def get_labels():
     return jsonify({'labels': LABELS})
 
 if __name__ == '__main__':
+    import os
+    
+    # Get port from environment variable (for Railway/Render/Docker)
+    port = int(os.environ.get('PORT', 5000))
+    
     print("\n" + "="*60)
     print("🚀 ASL Alphabet Recognition API (Dual Hand Models)")
     print("="*60)
@@ -262,7 +267,8 @@ if __name__ == '__main__':
     print("  GET  /health  - Health check")
     print("  POST /predict - Predict ASL letter (requires 'landmarks' and optional 'handedness')")
     print("  GET  /labels  - Get all labels")
-    print("\nStarting server on http://localhost:5000")
+    print(f"\nStarting server on http://0.0.0.0:{port}")
     print("="*60)
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=False)
+
