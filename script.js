@@ -566,24 +566,8 @@ async function processTranslationGestures(results) {
         }
     }
 
-    // Single hand gestures - Check for SPACE gesture first
-    for (let i = 0; i < results.multiHandLandmarks.length; i++) {
-        const landmarks = results.multiHandLandmarks[i];
-        const handedness = results.multiHandedness[i];
-
-        // Check for SPACE gesture (5 jari terbuka)
-        if (detectSpaceGesture(landmarks, handedness)) {
-            console.log('🖐️ SPACE gesture detected!');
-            const spaceGesture = {
-                name: 'SPACE',
-                translation: 'SPACE',
-                confidence: 0.9,
-                handedness: handedness.label
-            };
-            displayAndProcessGesture(spaceGesture, false);
-            return; // Stop processing other gestures when space detected
-        }
-    }
+    // Single hand gestures - Let the trained model handle ALL gestures including SPACE
+    // SPACE detection disabled because rule-based detection was interfering with B and C letters
 
     // If no SPACE gesture, process normal letters
     for (let i = 0; i < results.multiHandLandmarks.length; i++) {
