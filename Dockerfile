@@ -7,14 +7,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Install Python dependencies - TFLite runtime is much smaller than TensorFlow
+# Install Python dependencies
+# Try ai-edge-litert first (Google's new lightweight TFLite runtime)
+# Fallback to tensorflow if not available (heavier but works)
 RUN pip install --no-cache-dir \
     flask>=2.3.0 \
     flask-cors>=4.0.0 \
-    tflite-runtime \
     numpy>=1.24.0 \
     pillow>=9.5.0 \
-    gunicorn
+    gunicorn \
+    && (pip install --no-cache-dir ai-edge-litert || pip install --no-cache-dir tensorflow-cpu)
 
 # Copy application files
 COPY . .

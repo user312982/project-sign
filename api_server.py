@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Flask API for ASL Alphabet Recognition - TFLite Version
-Uses lightweight tflite-runtime for Railway free tier compatibility.
+Uses lightweight LiteRT/TFLite for Railway free tier compatibility.
 """
 
 import os
@@ -10,19 +10,24 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TF warnings
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import numpy as np
-from PIL import Image, ImageDraw
-import io
-import base64
 import json
 from pathlib import Path
 
-# Try tflite-runtime first (lightweight), fallback to tensorflow
+# Try different TFLite runtime options (in order of preference)
 try:
-    from tflite_runtime.interpreter import Interpreter
-    print("Using: tflite-runtime (lightweight)")
+    # Option 1: ai-edge-litert (Google's new lightweight runtime)
+    from ai_edge_litert import interpreter as litert
+    Interpreter = litert.Interpreter
+    print("Using: ai-edge-litert (lightweight)")
 except ImportError:
-    from tensorflow.lite.python.interpreter import Interpreter
-    print("Using: tensorflow.lite (fallback)")
+    try:
+        # Option 2: tflite-runtime (legacy, may not work on newer Python)
+        from tflite_runtime.interpreter import Interpreter
+        print("Using: tflite-runtime")
+    except ImportError:
+        # Option 3: Full TensorFlow (fallback, heavier)
+        from tensorflow.lite.python.interpreter import Interpreter
+        print("Using: tensorflow.lite (fallback)")
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for browser access
