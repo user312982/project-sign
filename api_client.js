@@ -2,36 +2,30 @@
 // API Backend Configuration
 // ============================================
 
-const DEPLOY_VERSION = '1.0.0';
+const DEPLOY_VERSION = '1.0.1';
 
 // Auto-detect API URL based on environment
-// For Railway/Render: Set VITE_API_URL or use same origin
-// For local development: Uses localhost:5000
+// Priority: 1) window.API_CONFIG (from index.html), 2) auto-detect, 3) localhost fallback
 const API_URL = (() => {
-    // Check for environment variable (if using bundler like Vite)
-    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) {
-        return import.meta.env.VITE_API_URL;
-    }
-
-    // Check for global config (can be set in index.html)
-    // Only use if API_URL is a non-empty string
+    // Check for global config (set in index.html before this script loads)
     if (typeof window !== 'undefined' && window.API_CONFIG?.API_URL && window.API_CONFIG.API_URL.length > 0) {
+        console.log('📡 Using API_CONFIG from index.html');
         return window.API_CONFIG.API_URL;
     }
 
-    // Auto-detect: if running on Railway/Render, use same origin (proxy)
-    // Otherwise fallback to localhost for development
+    // Auto-detect: if running on production domain, use same origin
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
 
-        // Production: Railway, Render, or other cloud platforms
+        // Production: Not localhost
         if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-            // Use same origin - assumes API is reverse-proxied or on same domain
+            console.log('📡 Auto-detected production environment');
             return window.location.origin;
         }
     }
 
     // Development fallback
+    console.log('📡 Using localhost fallback');
     return 'http://localhost:5000';
 })();
 
