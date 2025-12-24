@@ -343,6 +343,8 @@ async function loadTensorFlowModel() {
 // MEDIAPIPE HANDS SETUP
 // ============================================
 
+let mediaPipeReady = false;
+
 async function initializeMediaPipe() {
     console.log('🖐️ Initializing MediaPipe Hands...');
 
@@ -360,12 +362,15 @@ async function initializeMediaPipe() {
         minTrackingConfidence: CONFIG.MIN_TRACKING_CONFIDENCE
     });
 
-    hands.onResults(onHandsResults);
+    hands.onResults((results) => {
+        if (!mediaPipeReady) {
+            console.log('✅ MediaPipe Hands initialized successfully!');
+            mediaPipeReady = true;
+        }
+        onHandsResults(results);
+    });
 
-    // Initialize MediaPipe - this loads the WASM files
-    console.log('⏳ Loading MediaPipe WASM models...');
-    await hands.initialize();
-    console.log('✅ MediaPipe Hands initialized successfully!');
+    console.log('✅ MediaPipe Hands configured. Will initialize on first frame.');
 }
 
 function initializeCanvas() {
