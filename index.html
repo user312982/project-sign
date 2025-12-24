@@ -1,14 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>sign.Translate - ASL Alphabet Recognition</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=6">
 </head>
+
 <body>
     <div class="app-container">
         <!-- Header -->
@@ -28,7 +32,7 @@
                 <div class="video-wrapper">
                     <video id="videoElement" autoplay playsinline></video>
                     <canvas id="canvasElement"></canvas>
-                    
+
                     <!-- Video Overlay Info -->
                     <div class="video-overlay">
                         <div>
@@ -39,7 +43,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Language Bar -->
                 <div class="language-bar">
                     <div class="language-selector">
@@ -86,12 +90,14 @@
                 <div class="action-buttons">
                     <button id="speakBtn" class="btn-action" title="Text to Speech">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                            <path
+                                d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
                         </svg>
                     </button>
 
                     <!-- Quick Tip -->
-                    <div style="position: fixed; bottom: 10px; left: 10px; background: rgba(0,0,0,0.8); color: white; padding: 10px; border-radius: 5px; font-size: 0.8rem; max-width: 250px;">
+                    <div
+                        style="position: fixed; bottom: 10px; left: 10px; background: rgba(0,0,0,0.8); color: white; padding: 10px; border-radius: 5px; font-size: 0.8rem; max-width: 250px;">
                         <strong>💡 Tips:</strong><br>
                         • Huruf: Bentuk huruf A-Z<br>
                         • Spasi: 5 jari terbuka 🖐️<br>
@@ -99,12 +105,13 @@
                     </div>
                     <button id="clearBtn" class="btn-action" title="Clear Text">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
                         </svg>
                     </button>
                     <button id="copyBtn" class="btn-action" title="Copy Text">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                            <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                            <path
+                                d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
                         </svg>
                     </button>
                 </div>
@@ -131,17 +138,27 @@
 
     <!-- TensorFlow.js -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
-    
+
     <!-- MediaPipe Hands -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-    
+
+    <!-- API Configuration (Change URL for production deployment) -->
+    <script>
+        window.API_CONFIG = {
+            API_URL: 'https://project-sign-production.up.railway.app'
+        };
+    </script>
+
     <!-- API Client (for backend predictions) -->
-    <script src="api_client.js?v=13"></script>
+    <script src="api_client.js?v=14"></script>
 
     <!-- Main Script -->
     <script src="script.js?v=20"></script>
 </body>
+
 </html>

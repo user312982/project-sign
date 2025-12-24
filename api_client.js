@@ -2,6 +2,8 @@
 // API Backend Configuration
 // ============================================
 
+const DEPLOY_VERSION = '1.0.0';
+
 // Auto-detect API URL based on environment
 // For Railway/Render: Set VITE_API_URL or use same origin
 // For local development: Uses localhost:5000
@@ -12,7 +14,8 @@ const API_URL = (() => {
     }
 
     // Check for global config (can be set in index.html)
-    if (typeof window !== 'undefined' && window.API_CONFIG?.API_URL) {
+    // Only use if API_URL is a non-empty string
+    if (typeof window !== 'undefined' && window.API_CONFIG?.API_URL && window.API_CONFIG.API_URL.length > 0) {
         return window.API_CONFIG.API_URL;
     }
 
@@ -32,7 +35,7 @@ const API_URL = (() => {
     return 'http://localhost:5000';
 })();
 
-console.log('🔧 API URL configured:', API_URL);
+console.log(`🔧 API Client v${DEPLOY_VERSION} | API URL: ${API_URL}`);
 const CAPTURE_INTERVAL = 300; // Faster predictions: every 300ms (was 1000ms)
 
 // ============================================
