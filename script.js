@@ -61,14 +61,14 @@ const HAND_ABSENCE_RESET_DELAY = 500; // Reset setelah 500ms tangan hilang
 
 // ASL Alphabet Labels (A-Z)
 const GESTURE_LABELS = [
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 
-    'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
+    'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
     'U', 'V', 'W', 'X', 'Y', 'Z'
 ];
 
 // Translation mapping - ASL letters
 const GESTURE_TRANSLATIONS = {
-    'A': 'A', 'B': 'B', 'C': 'C', 'D': 'D', 'E': 'E', 
+    'A': 'A', 'B': 'B', 'C': 'C', 'D': 'D', 'E': 'E',
     'F': 'F', 'G': 'G', 'H': 'H', 'I': 'I', 'J': 'J',
     'K': 'K', 'L': 'L', 'M': 'M', 'N': 'N', 'O': 'O',
     'P': 'P', 'Q': 'Q', 'R': 'R', 'S': 'S', 'T': 'T',
@@ -135,7 +135,7 @@ function speakSimpleTTS(text) {
         // Gabungkan huruf-huruf menjadi kata (lowercase untuk natural speech)
         // Contoh: "H E L L O" -> "hello"
         processedText = processedText.replace(/\s+/g, '').toLowerCase();
-        
+
         // Hilangkan kata "space" dari TTS (tidak perlu diucapkan)
         processedText = processedText.replace(/space/gi, ' ').trim();
 
@@ -289,21 +289,21 @@ async function loadTensorFlowModel() {
         // Retry API health check with timeout
         let isHealthy = false;
         let retries = 3;
-        
+
         for (let i = 0; i < retries; i++) {
             console.log(`API connection attempt ${i + 1}/${retries}...`);
             isHealthy = await checkAPIHealth();
-            
+
             if (isHealthy) {
                 break;
             }
-            
+
             // Wait 1 second before retry
             if (i < retries - 1) {
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
-        
+
         if (isHealthy) {
             modelLoaded = true;
             if (modelStatus) {
@@ -311,7 +311,7 @@ async function loadTensorFlowModel() {
                 modelStatus.style.color = '#000000';
             }
             console.log('✓ API Server connected successfully');
-            
+
             // Update status dot
             const statusDotEl = document.getElementById('statusDot');
             if (statusDotEl) {
@@ -329,7 +329,7 @@ async function loadTensorFlowModel() {
         console.info('   2. Run: ./START_API.sh');
         console.info('   3. Wait for "Running on http://localhost:5000"');
         console.info('   4. Refresh this page (Ctrl+Shift+R)');
-        
+
         if (modelStatus) {
             modelStatus.textContent = 'API Offline';
             modelStatus.style.color = '#000000';
@@ -343,9 +343,12 @@ async function loadTensorFlowModel() {
 // MEDIAPIPE HANDS SETUP
 // ============================================
 
-function initializeMediaPipe() {
+async function initializeMediaPipe() {
+    console.log('🖐️ Initializing MediaPipe Hands...');
+
     hands = new Hands({
         locateFile: (file) => {
+            console.log(`📦 Loading MediaPipe file: ${file}`);
             return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
         }
     });
@@ -358,6 +361,11 @@ function initializeMediaPipe() {
     });
 
     hands.onResults(onHandsResults);
+
+    // Initialize MediaPipe - this loads the WASM files
+    console.log('⏳ Loading MediaPipe WASM models...');
+    await hands.initialize();
+    console.log('✅ MediaPipe Hands initialized successfully!');
 }
 
 function initializeCanvas() {
@@ -386,7 +394,7 @@ async function startCamera() {
         });
 
         videoElement.srcObject = stream;
-        
+
         await new Promise((resolve) => {
             videoElement.onloadedmetadata = () => {
                 resolve();
@@ -396,7 +404,8 @@ async function startCamera() {
         canvasElement.width = videoElement.videoWidth;
         canvasElement.height = videoElement.videoHeight;
 
-        initializeMediaPipe();
+        // Wait for MediaPipe to fully initialize before starting camera
+        await initializeMediaPipe();
         initializeCanvas();
 
         camera = new Camera(videoElement, {
@@ -415,7 +424,7 @@ async function startCamera() {
         if (statusDot) {
             statusDot.classList.add('active');
         }
-        
+
         // Auto-start translation mode
         isTranslationActive = true;
         if (modeIndicator) {
@@ -437,18 +446,18 @@ async function startCamera() {
     } catch (error) {
         console.error('Error starting camera:', error);
         if (statusText) statusText.textContent = 'Error: Tidak dapat mengakses kamera';
-        
+
         // Show error message to user
         const errorMsg = document.createElement('div');
-    // Use black/white only
-    errorMsg.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #000000; color: #FFFFFF; padding: 20px 40px; border-radius: 10px; z-index: 9999; text-align: center;';
+        // Use black/white only
+        errorMsg.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #000000; color: #FFFFFF; padding: 20px 40px; border-radius: 10px; z-index: 9999; text-align: center;';
         errorMsg.innerHTML = `
             <h3 style="margin: 0 0 10px 0;">❌ Gagal Mengakses Kamera</h3>
             <p style="margin: 0;">${error.message}</p>
             <p style="margin: 10px 0 0 0; font-size: 0.9em;">Pastikan Anda memberikan izin akses kamera</p>
         `;
         document.body.appendChild(errorMsg);
-        
+
         setTimeout(() => {
             document.body.removeChild(errorMsg);
         }, 5000);
@@ -466,11 +475,11 @@ function onHandsResults(results) {
 
     canvasCtx.save();
     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    
+
     // Flip camera horizontally (mirror mode)
     canvasCtx.translate(canvasElement.width, 0);
     canvasCtx.scale(-1, 1);
-    
+
     canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
@@ -483,10 +492,10 @@ function onHandsResults(results) {
         handWasDetected = true;
 
         // Draw all hands
-    // MediaPipe default colors (green for connectors, red for landmarks)
-    const handColors = ['#00FF00', '#FF0000'];      // Green and Red for connectors
-    const landmarkColors = ['#FF0000', '#00FF00'];  // Red and Green for landmarks
-        
+        // MediaPipe default colors (green for connectors, red for landmarks)
+        const handColors = ['#00FF00', '#FF0000'];      // Green and Red for connectors
+        const landmarkColors = ['#FF0000', '#00FF00'];  // Red and Green for landmarks
+
         for (let i = 0; i < results.multiHandLandmarks.length; i++) {
             const landmarks = results.multiHandLandmarks[i];
             const handedness = results.multiHandedness[i];
@@ -515,14 +524,14 @@ function onHandsResults(results) {
     } else {
         // NO HAND DETECTED - Reset gesture tracking setelah delay
         const now = Date.now();
-        
+
         // Jika tangan hilang lebih dari HAND_ABSENCE_RESET_DELAY, reset gesture
         if (handWasDetected && (now - lastHandDetectedTime) > HAND_ABSENCE_RESET_DELAY) {
             console.log('🚫 Tangan hilang > 500ms, reset gesture tracking');
             resetGestureTracking();
             handWasDetected = false;
         }
-        
+
         if (handCount) handCount.textContent = '0';
         if (handCountText) handCountText.textContent = '0 hands';
         if (currentGesture) currentGesture.textContent = '-';
@@ -707,7 +716,7 @@ async function recognizeGestureWithTF(landmarks, handedness) {
             // Extract handedness label (MediaPipe returns 'Left' or 'Right')
             const handLabel = handedness && handedness.label ? handedness.label : 'Right';
             const result = await recognizeWithAPI(landmarks, handLabel);
-            
+
             if (result && result.gesture) {
                 return {
                     name: result.gesture,
@@ -882,7 +891,7 @@ function resetGestureTracking() {
     twoHandGestureStartTime = 0;
     currentHoldProgress = 0;
     updateHoldProgress(0);
-    
+
     // Clear hold interval jika ada
     if (holdInterval) {
         clearInterval(holdInterval);
