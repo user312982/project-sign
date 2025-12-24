@@ -4,16 +4,28 @@ Flask API for ASL Alphabet Recognition
 Serves predictions from trained Keras model
 """
 
+# Memory optimization for Railway free tier (512MB limit)
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reduce TF logging
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN for memory
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import tensorflow as tf
+
+# Configure TensorFlow for minimal memory usage
+tf.get_logger().setLevel('ERROR')
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
+
 import numpy as np
 from PIL import Image, ImageDraw
 import io
 import base64
 import json
 from pathlib import Path
-import cv2
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for browser access
