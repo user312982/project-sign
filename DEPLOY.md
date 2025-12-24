@@ -1,82 +1,95 @@
 # ASL Recognition API Deployment
 
-## Quick Deploy Options
+## 🚀 Quick Deploy (TFLite Version)
 
-### Option 1: Railway (Recommended - Free Tier)
-
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template)
-
-1. **Push to GitHub**
-   ```bash
-   git add .
-   git commit -m "Prepare for deployment"
-   git push origin main
-   ```
-
-2. **Deploy on Railway**
-   - Go to [Railway](https://railway.app)
-   - Click "New Project" → "Deploy from GitHub Repo"
-   - Select your repository
-   - Railway auto-detects Dockerfile and deploys
-
-3. **Get your API URL**
-   - After deployment, click on your service
-   - Go to Settings → Domains
-   - Generate a domain (e.g., `your-app.up.railway.app`)
+This API uses TFLite models (~110KB each) instead of full TensorFlow (~500MB), making it compatible with free tier hosting.
 
 ---
 
-### Option 2: Docker Compose (Self-Hosted/VPS)
+## Railway Deployment (Recommended)
 
+### 1. Push to GitHub
 ```bash
-# Build and run
-docker-compose up -d --build
-
-# Check status
-docker-compose ps
-
-# View logs
-docker-compose logs -f
-
-# Stop
-docker-compose down
+git add .
+git commit -m "Deploy TFLite version"
+git push origin main
 ```
 
-**Access:**
-- Frontend: http://localhost:8001
-- API: http://localhost:5000
+### 2. Deploy on Railway
+- Go to [railway.app](https://railway.app)
+- Click "New Project" → "Deploy from GitHub Repo"
+- Select your repository
+- Railway auto-detects Dockerfile and deploys
 
----
-
-### Option 3: Render (Free Tier)
-
-1. Push to GitHub
-2. Go to [Render](https://render.com)
-3. Create "New Web Service"
-4. Connect your GitHub repo
-5. Set environment to "Docker"
-6. Deploy
-
----
-
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `FLASK_ENV` | Flask environment | `production` |
-| `PORT` | API port (auto-set by Railway) | `5000` |
+### 3. Get API URL
+- After deployment, go to Settings → Domains
+- Generate a domain (e.g., `your-app.up.railway.app`)
 
 ---
 
 ## Frontend Configuration
 
-After deploying the API, update your frontend to point to the production API URL.
+Update your `index.html` with your Railway API URL:
 
-**Option A: Edit `api_client.js`**
-The API URL is auto-detected. For custom domains, set `window.API_CONFIG.API_URL` in `index.html`.
+```html
+<script>
+    window.API_CONFIG = {
+        API_URL: 'https://your-app.up.railway.app'
+    };
+</script>
+```
 
-**Option B: Use Environment Variable**
-If using a bundler (Vite, webpack), set `VITE_API_URL` environment variable.
+---
+
+## Local Development
+
+### Run API Locally
+```bash
+# Install dependencies
+pip install flask flask-cors numpy pillow
+
+# For TFLite support, install one of:
+pip install ai-edge-litert  # Preferred (lightweight)
+# OR
+pip install tensorflow-cpu  # Fallback (heavier)
+
+# Run
+python api_server.py
+```
+
+### Test API
+```bash
+# Health check
+curl http://localhost:5000/health
+
+# Response:
+# {"model": "tflite", "status": "ok", "version": "2.0.0"}
+```
+
+---
+
+## Docker Compose (Self-Hosted)
+
+```bash
+# Build and run
+docker-compose up -d --build
+
+# Access
+# - API: http://localhost:5000
+# - Frontend: http://localhost:8001
+```
+
+---
+
+## Memory Usage
+
+| Component | Size |
+|-----------|------|
+| TFLite models | ~220KB (2 × 110KB) |
+| Runtime (ai-edge-litert) | ~5MB |
+| Runtime (tensorflow-cpu) | ~500MB (fallback) |
+
+Railway free tier: 512MB RAM ✓
 
 ---
 
@@ -86,8 +99,8 @@ If using a bundler (Vite, webpack), set `VITE_API_URL` environment variable.
 # Health check
 curl https://your-app.up.railway.app/health
 
-# Test prediction (requires landmarks data)
+# Test prediction
 curl -X POST https://your-app.up.railway.app/predict \
   -H "Content-Type: application/json" \
-  -d '{"landmarks": [...],"handedness": "Right"}'
+  -d '{"landmarks": [0.5,0.5,0,...], "handedness": "Right"}'
 ```
