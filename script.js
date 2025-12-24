@@ -7,6 +7,7 @@ const CONFIG = {
     // Gesture recognition settings
     GESTURE_HOLD_DELAY: 2000, // milliseconds to hold before adding to translation
     MIN_CONFIDENCE: 0.7,      // minimum confidence for gesture recognition
+    SMOOTHING_WINDOW: 5,      // number of predictions to average for stability
 
     // Text-to-speech settings
     TTS_RATE: 0.8,            // speech rate (0.1 to 2) - optimized for ASL clarity
@@ -20,11 +21,11 @@ const CONFIG = {
     SHOW_NOTIFICATIONS: true, // show notification popups
     NOTIFICATION_DURATION: 3000, // milliseconds
 
-    // MediaPipe settings
+    // MediaPipe settings (higher = more accurate but slower)
     MAX_NUM_HANDS: 2,
     MODEL_COMPLEXITY: 1,
-    MIN_DETECTION_CONFIDENCE: 0.7,
-    MIN_TRACKING_CONFIDENCE: 0.7
+    MIN_DETECTION_CONFIDENCE: 0.7,  // Increased from 0.5
+    MIN_TRACKING_CONFIDENCE: 0.5
 };
 
 // MediaPipe Drawing Utils (must be imported from window object)

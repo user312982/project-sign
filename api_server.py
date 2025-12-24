@@ -89,13 +89,17 @@ def preprocess_landmarks(landmarks):
 # API ENDPOINTS
 # ============================================
 
+# Minimum confidence threshold
+MIN_CONFIDENCE = 0.4  # Below this, consider prediction uncertain
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({
         'status': 'ok',
         'model': 'asl-tflite',
-        'version': '3.0.0',
-        'classes': len(LABELS)
+        'version': '3.1.0',  # Updated version
+        'classes': len(LABELS),
+        'min_confidence': MIN_CONFIDENCE
     })
 
 @app.route('/predict', methods=['POST'])
@@ -126,15 +130,21 @@ def predict():
         top_label = LABELS[top_idx]
         top_confidence = float(predictions[top_idx])
         
+        # Check confidence threshold
+        is_uncertain = top_confidence < MIN_CONFIDENCE
+        
         # Top 3
         top_3_idx = np.argsort(predictions)[-3:][::-1]
         top_3 = [{'label': LABELS[idx], 'confidence': float(predictions[idx])} for idx in top_3_idx]
         
-        print(f"🔍 {top_label.upper()} ({top_confidence:.1%})")
+        # Log with uncertainty indicator
+        status = "⚠️" if is_uncertain else "🔍"
+        print(f"{status} {top_label.upper()} ({top_confidence:.1%})")
         
         return jsonify({
             'prediction': top_label,
             'confidence': top_confidence,
+            'uncertain': is_uncertain,  # New field
             'top3': top_3,
             'handedness': handedness,
             'model_used': 'ASL A-Z'

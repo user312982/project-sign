@@ -243,13 +243,15 @@ async function recognizeWithAPI(landmarks, handedness = 'Right') {
     // Use new result if available, otherwise use last prediction
     const currentResult = result || lastPrediction;
 
-    console.log(' API Result:', currentResult);
+    console.log('📋 API Result:', currentResult);
 
     if (currentResult && currentResult.prediction) {
-        console.log(` Predicted: ${currentResult.prediction} (${currentResult.confidence.toFixed(3)}) [${currentResult.model_used}]`);
+        const uncertainIndicator = currentResult.uncertain ? ' ⚠️' : '';
+        console.log(`🔤 Predicted: ${currentResult.prediction}${uncertainIndicator} (${currentResult.confidence.toFixed(3)}) [${currentResult.model_used}]`);
         return {
             gesture: currentResult.prediction,
             confidence: currentResult.confidence,
+            uncertain: currentResult.uncertain || false,  // Pass uncertainty flag
             top3: currentResult.top3,
             handedness: currentResult.handedness,
             model_used: currentResult.model_used

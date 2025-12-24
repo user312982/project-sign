@@ -1,50 +1,56 @@
-# 📅 Rencana Sprint Proyek (Project Sprint Plan)
+# Lampiran 1 - Sprint Backlog
 
-Rencana ini dirancang untuk durasi 4 minggu, dimulai dari membangun pondasi yang kuat, mengembangkan kecerdasan buatan (AI), hingga fitur suara di akhir.
+## SPRINT 1 - Inisialisasi Lingkungan Pengembangan
 
-| Minggu | Fokus Utama | Deskripsi Ringkas |
-| :--- | :--- | :--- |
-| **Minggu 1** | 🏗️ **Pondasi & Antarmuka (Foundation)** | Membangun struktur proyek, desain tampilan (UI/UX), dan sistem dasar aplikasi. |
-| **Minggu 2** | 📷 **Logika & Deteksi Dasar** | Mengaktifkan kamera, deteksi tangan, dan logika penerjemahan dasar. |
-| **Minggu 3** | 🧠 **Pembuatan Model AI (Model)** | Pengumpulan data, pelatihan model AI agar akurat, dan integrasi ke sistem. |
-| **Minggu 4** | 🗣️ **Fitur Suara (Text-to-Speech)** | Mengubah teks terjemahan menjadi suara dan finalisasi aplikasi. |
+| Kode | Requirement | Fitur yang Dikembangkan | Prioritas | Status |
+|------|-------------|-------------------------|-----------|--------|
+| UC-01 | Inisialisasi Project | Setup repository, struktur folder, Python Flask API, dan frontend HTML/CSS/JS | Tinggi | Selesai |
+| UC-01 | Implementasi Layout | Membuat layout frontend website dengan desain modern (Midnight Glass theme) | Tinggi | Selesai |
+| UC-01 | Konfigurasi Dependencies | Setup `requirements.txt`, MediaPipe CDN, dan TensorFlow.js | Tinggi | Selesai |
 
 ---
 
-## 📌 Detail Mingguan
+## SPRINT 2 - Deteksi Tangan & Integrasi Kamera
 
-### Minggu 1: Pondasi & Antarmuka (Foundation)
-**Tujuan:** Menyiapkan "wadah" aplikasi yang siap digunakan dan nyaman dilihat.
+| Kode | Requirement | Fitur yang Dikembangkan | Prioritas | Status |
+|------|-------------|-------------------------|-----------|--------|
+| UC-02 | Akses Kamera | Implementasi akses webcam dengan MediaPipe Camera Utils | Tinggi | Selesai |
+| UC-02 | Deteksi Tangan | Integrasi MediaPipe Hands untuk tracking 21 landmark tangan | Tinggi | Selesai |
+| UC-02 | Visualisasi Landmark | Menampilkan landmark dan koneksi tangan pada canvas overlay | Tinggi | Selesai |
+| UC-02 | Deteksi Handedness | Implementasi deteksi tangan kiri/kanan untuk model selection | Sedang | Selesai |
 
-- **Aktivitas:**
-    - Membuat struktur folder proyek yang rapi.
-    - Mendesain tampilan antarmuka (UI) yang modern dan responsif (bisa dibuka di HP/Laptop).
-    - Menyiapkan elemen dasar seperti tombol, layar kamera, dan kotak teks.
-    - Memastikan navigasi antar halaman berjalan lancar (misal: halaman utama ke panduan abjad).
+---
 
-### Minggu 2: Logika & Deteksi Dasar
-**Tujuan:** Membuat aplikasi "hidup" dan bisa melihat tangan pengguna.
+## SPRINT 3 - Model AI & Prediksi
 
-- **Aktivitas:**
-    - Menghubungkan aplikasi dengan kamera web (webcam).
-    - Mengintegrasikan sistem pelacakan tangan (Hand Tracking) agar titik-titik jari terlihat.
-    - Membuat logika dasar pemrograman: "Jika jari telunjuk ke atas, maka..."
-    - Menyiapkan sistem untuk menangkap gambar dari kamera sebagai persiapan data.
+| Kode | Requirement | Fitur yang Dikembangkan | Prioritas | Status |
+|------|-------------|-------------------------|-----------|--------|
+| UC-03 | Preprocessing Landmarks | Implementasi normalisasi landmark (wrist-relative, scaling) | Tinggi | Selesai |
+| UC-03 | Model TFLite | Konversi model dari H5 ke TFLite untuk deployment ringan (~110KB) | Tinggi | Selesai |
+| UC-03 | API Prediksi | Membuat endpoint `/predict` untuk menerima landmark dan return prediksi huruf | Tinggi | Selesai |
+| UC-03 | Real-time Recognition | Gesture recognition dengan confidence threshold dan temporal smoothing | Sedang | Selesai |
+| UC-03 | Space Gesture | Deteksi gesture SPACE (5 jari terbuka) untuk pemisah kata | Sedang | Selesai |
 
-### Minggu 3: Pembuatan Model AI (Model)
-**Tujuan:** Memberikan "otak" pada aplikasi agar bisa membedakan huruf A, B, C, dst.
+---
 
-- **Aktivitas:**
-    - **Pengumpulan Data:** Mengambil ratusan foto tangan untuk setiap huruf abjad (A-Z).
-    - **Pelatihan (Training):** Melatih komputer untuk mengenali pola tangan menggunakan data tersebut.
-    - **Evaluasi:** Menguji seberapa pintar model dalam menebak huruf.
-    - **Integrasi:** Memasukkan "otak" yang sudah jadi ini ke dalam aplikasi web agar bisa memprediksi secara langsung (real-time).
+## SPRINT 4 - Text-to-Speech & Deployment
 
-### Minggu 4: Fitur Suara (Text-to-Speech) & Finalisasi
-**Tujuan:** Agar aplikasi bisa "berbicara" dan siap dipamerkan.
+| Kode | Requirement | Fitur yang Dikembangkan | Prioritas | Status |
+|------|-------------|-------------------------|-----------|--------|
+| UC-04 | Text-to-Speech | Implementasi Web Speech API untuk membaca teks hasil translasi | Tinggi | Selesai |
+| UC-04 | Hold-to-Add | Fitur hold gesture 2 detik sebelum huruf ditambahkan ke output | Sedang | Selesai |
+| UC-04 | Action Buttons | Tombol Speak, Clear, dan Copy untuk kontrol output | Tinggi | Selesai |
+| UC-05 | Docker Setup | Konfigurasi `Dockerfile` dan `docker-compose.yml` untuk containerization | Tinggi | Selesai |
+| UC-05 | Railway Deployment | Setup `railway.json` dan optimisasi untuk cloud deployment | Tinggi | Selesai |
+| UC-05 | Dynamic API URL | Auto-detect API URL untuk development vs production | Sedang | Selesai |
 
-- **Aktivitas:**
-    - **Text-to-Speech (TTS):** Membuat fitur agar teks hasil terjemahan bisa dibacakan oleh suara robot/komputer.
-    - **Penyusunan Kalimat:** Memastikan huruf-huruf yang terdeteksi bisa disusun menjadi kata yang enak didengar.
-    - **Pembersihan (Polishing):** Memperbaiki bug kecil, mempercantik animasi, dan memastikan tidak ada error.
-    - **Demo Preparation:** Menyiapkan aplikasi untuk presentasi akhir.
+---
+
+## Ringkasan Progress
+
+| Sprint | Fokus | Status |
+|--------|-------|--------|
+| Sprint 1 | Inisialisasi Lingkungan Pengembangan | ✅ Selesai |
+| Sprint 2 | Deteksi Tangan & Integrasi Kamera | ✅ Selesai |
+| Sprint 3 | Model AI & Prediksi | ✅ Selesai |
+| Sprint 4 | Text-to-Speech & Deployment | ✅ Selesai |
